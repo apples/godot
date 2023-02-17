@@ -113,6 +113,17 @@ public:
 			DEPTH_TEST_ENABLED
 		};
 
+		enum DepthFunction {
+			DEPTH_FUNCTION_LESS_OR_EQUAL,
+			DEPTH_FUNCTION_LESS,
+			DEPTH_FUNCTION_GREATER_OR_EQUAL,
+			DEPTH_FUNCTION_GREATER,
+			DEPTH_FUNCTION_EQUAL,
+			DEPTH_FUNCTION_NOT_EQUAL,
+			DEPTH_FUNCTION_ALWAYS,
+			DEPTH_FUNCTION_NEVER
+		};
+
 		enum Cull {
 			CULL_DISABLED,
 			CULL_FRONT,
@@ -147,6 +158,7 @@ public:
 		String code;
 
 		DepthDraw depth_draw = DEPTH_DRAW_OPAQUE;
+		DepthFunction depth_function = DEPTH_FUNCTION_LESS_OR_EQUAL;
 		DepthTest depth_test = DEPTH_TEST_ENABLED;
 
 		bool uses_point_size = false;
