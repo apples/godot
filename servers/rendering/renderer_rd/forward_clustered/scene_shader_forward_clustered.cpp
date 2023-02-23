@@ -262,36 +262,21 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 	if (depth_test != DEPTH_TEST_DISABLED) {
 		depth_stencil_state.enable_depth_test = true;
 		depth_stencil_state.enable_depth_write = depth_draw != DEPTH_DRAW_DISABLED ? true : false;
-		switch (depth_function) {
-			case DEPTH_FUNCTION_LESS_OR_EQUAL:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_LESS_OR_EQUAL;
-				break;
-			case DEPTH_FUNCTION_LESS:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_LESS;
-				break;
-			case DEPTH_FUNCTION_GREATER_OR_EQUAL:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_GREATER_OR_EQUAL;
-				break;
-			case DEPTH_FUNCTION_GREATER:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_GREATER;
-				break;
-			case DEPTH_FUNCTION_EQUAL:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_EQUAL;
-				break;
-			case DEPTH_FUNCTION_NOT_EQUAL:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_NOT_EQUAL;
-				break;
-			case DEPTH_FUNCTION_ALWAYS:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_ALWAYS;
-				break;
-			case DEPTH_FUNCTION_NEVER:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_NEVER;
-				break;
-			default:
-				depth_stencil_state.depth_compare_operator = RD::COMPARE_OP_LESS_OR_EQUAL;
-				break;
-		}
+
+		RD::CompareOperator depth_function_rd_table[DEPTH_FUNCTION_MAX] = {
+			RD::COMPARE_OP_LESS_OR_EQUAL,
+			RD::COMPARE_OP_LESS,
+			RD::COMPARE_OP_GREATER_OR_EQUAL,
+			RD::COMPARE_OP_GREATER,
+			RD::COMPARE_OP_EQUAL,
+			RD::COMPARE_OP_NOT_EQUAL,
+			RD::COMPARE_OP_ALWAYS,
+			RD::COMPARE_OP_NEVER,
+		};
+
+		depth_stencil_state.depth_compare_operator = depth_function_rd_table[depth_function];
 	}
+
 	bool depth_pre_pass_enabled = bool(GLOBAL_GET("rendering/driver/depth_prepass/enable"));
 
 	for (int i = 0; i < CULL_VARIANT_MAX; i++) {

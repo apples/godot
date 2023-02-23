@@ -2136,35 +2136,18 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 		}
 
 		if (scene_state.current_depth_function != shader->depth_function) {
-			switch (shader->depth_function) {
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_LESS_OR_EQUAL:
-					glDepthFunc(GL_LEQUAL);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_LESS:
-					glDepthFunc(GL_LESS);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_GREATER_OR_EQUAL:
-					glDepthFunc(GL_GEQUAL);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_GREATER:
-					glDepthFunc(GL_GREATER);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_EQUAL:
-					glDepthFunc(GL_EQUAL);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_NOT_EQUAL:
-					glDepthFunc(GL_NOTEQUAL);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_ALWAYS:
-					glDepthFunc(GL_ALWAYS);
-					break;
-				case GLES3::SceneShaderData::DEPTH_FUNCTION_NEVER:
-					glDepthFunc(GL_NEVER);
-					break;
-				default:
-					glDepthFunc(GL_LEQUAL);
-					break;
-			}
+			GLenum depth_function_table[GLES3::SceneShaderData::DEPTH_FUNCTION_MAX] = {
+				GL_LEQUAL,
+				GL_LESS,
+				GL_GEQUAL,
+				GL_GREATER,
+				GL_EQUAL,
+				GL_NOTEQUAL,
+				GL_ALWAYS,
+				GL_NEVER,
+			};
+
+			glDepthFunc(depth_function_table[shader->depth_function]);
 			scene_state.current_depth_function = shader->depth_function;
 		}
 
