@@ -1000,7 +1000,7 @@ void RenderForwardClustered::_fill_render_list(RenderListType p_render_list, con
 					force_alpha = true;
 				}
 
-				if (!force_alpha && (surf->flags & (GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH | GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE))) {
+				if (!force_alpha && (surf->flags & GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE)) {
 					rl->add_element(surf);
 				}
 				if (force_alpha || (surf->flags & GeometryInstanceSurfaceDataCache::FLAG_PASS_ALPHA)) {
@@ -1038,7 +1038,7 @@ void RenderForwardClustered::_fill_render_list(RenderListType p_render_list, con
 					rl->add_element(surf);
 				}
 			} else {
-				if (surf->flags & (GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH | GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE)) {
+				if (surf->flags & (GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH)) {
 					rl->add_element(surf);
 				}
 			}
@@ -3449,7 +3449,7 @@ void RenderForwardClustered::_geometry_instance_add_surface_with_material(Geomet
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_USES_DOUBLE_SIDED_SHADOWS;
 	}
 
-	if (has_alpha || has_read_screen_alpha || p_material->shader_data->depth_draw == SceneShaderForwardClustered::ShaderData::DEPTH_DRAW_DISABLED || p_material->shader_data->depth_test == SceneShaderForwardClustered::ShaderData::DEPTH_TEST_DISABLED) {
+	if (has_alpha || has_read_screen_alpha) {
 		//material is only meant for alpha pass
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_ALPHA;
 		if ((p_material->shader_data->uses_depth_prepass_alpha || p_material->shader_data->uses_alpha_antialiasing) && !(p_material->shader_data->depth_draw == SceneShaderForwardClustered::ShaderData::DEPTH_DRAW_DISABLED || p_material->shader_data->depth_test == SceneShaderForwardClustered::ShaderData::DEPTH_TEST_DISABLED)) {
@@ -3458,8 +3458,10 @@ void RenderForwardClustered::_geometry_instance_add_surface_with_material(Geomet
 		}
 	} else {
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE;
-		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH;
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_SHADOW;
+		if (p_material->shader_data->depth_draw != SceneShaderForwardClustered::ShaderData::DEPTH_DRAW_DISABLED) {
+			flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH;
+		}
 	}
 
 	if (p_material->shader_data->uses_particle_trails) {

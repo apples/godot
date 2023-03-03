@@ -1927,7 +1927,7 @@ void RenderForwardMobile::_fill_render_list(RenderListType p_render_list, const 
 					rl->add_element(surf);
 				}
 			} else {
-				if (surf->flags & (GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH | GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE)) {
+				if (surf->flags & GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH) {
 					rl->add_element(surf);
 				}
 			}
@@ -2398,7 +2398,7 @@ void RenderForwardMobile::_geometry_instance_add_surface_with_material(GeometryI
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_USES_DOUBLE_SIDED_SHADOWS;
 	}
 
-	if (has_alpha || p_material->shader_data->depth_draw == SceneShaderForwardMobile::ShaderData::DEPTH_DRAW_DISABLED || p_material->shader_data->depth_test == SceneShaderForwardMobile::ShaderData::DEPTH_TEST_DISABLED) {
+	if (has_alpha) {
 		//material is only meant for alpha pass
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_ALPHA;
 		if ((p_material->shader_data->uses_depth_prepass_alpha || p_material->shader_data->uses_alpha_antialiasing) && !(p_material->shader_data->depth_draw == SceneShaderForwardMobile::ShaderData::DEPTH_DRAW_DISABLED || p_material->shader_data->depth_test == SceneShaderForwardMobile::ShaderData::DEPTH_TEST_DISABLED)) {
@@ -2407,8 +2407,10 @@ void RenderForwardMobile::_geometry_instance_add_surface_with_material(GeometryI
 		}
 	} else {
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE;
-		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH;
 		flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_SHADOW;
+		if (p_material->shader_data->depth_draw != SceneShaderForwardMobile::ShaderData::DEPTH_DRAW_DISABLED) {
+			flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH;
+		}
 	}
 
 	if (p_material->shader_data->uses_particle_trails) {
