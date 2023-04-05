@@ -358,6 +358,22 @@
 			The method for rendering the specular blob. See [enum SpecularMode].
 			[b]Note:[/b] [member specular_mode] only applies to the specular blob. It does not affect specular reflections from the sky, screen-space reflections, [VoxelGI], SDFGI or [ReflectionProbe]s. To disable reflections from these sources as well, set [member metallic_specular] to [code]0.0[/code] instead.
 		</member>
+		<member name="stencil_compare" type="int" setter="set_stencil_compare" getter="get_stencil_compare" enum="BaseMaterial3D.StencilCompareOperator" default="0">
+		</member>
+		<member name="stencil_compare_mask" type="int" setter="set_stencil_compare_mask" getter="get_stencil_compare_mask" default="255">
+		</member>
+		<member name="stencil_depth_fail" type="int" setter="set_stencil_depth_fail" getter="get_stencil_depth_fail" enum="BaseMaterial3D.StencilOperation" default="0">
+		</member>
+		<member name="stencil_enabled" type="bool" setter="set_stencil_enabled" getter="is_stencil_enabled" default="false">
+		</member>
+		<member name="stencil_fail" type="int" setter="set_stencil_fail" getter="get_stencil_fail" enum="BaseMaterial3D.StencilOperation" default="0">
+		</member>
+		<member name="stencil_pass" type="int" setter="set_stencil_pass" getter="get_stencil_pass" enum="BaseMaterial3D.StencilOperation" default="0">
+		</member>
+		<member name="stencil_reference" type="int" setter="set_stencil_reference" getter="get_stencil_reference" default="1">
+		</member>
+		<member name="stencil_write_mask" type="int" setter="set_stencil_write_mask" getter="get_stencil_write_mask" default="255">
+		</member>
 		<member name="subsurf_scatter_enabled" type="bool" setter="set_feature" getter="get_feature" default="false">
 			If [code]true[/code], subsurface scattering is enabled. Emulates light that penetrates an object's surface, is scattered, and then emerges. Subsurface scattering quality is controlled by [member ProjectSettings.rendering/environment/subsurface_scattering/subsurface_scattering_quality].
 		</member>
@@ -793,6 +809,38 @@
 		</constant>
 		<constant name="DISTANCE_FADE_OBJECT_DITHER" value="3" enum="DistanceFadeMode">
 			Smoothly fades the object out based on the object's distance from the camera using a dithering approach. Dithering discards pixels based on a set pattern to smoothly fade without enabling transparency. On certain hardware, this can be faster than [constant DISTANCE_FADE_PIXEL_ALPHA] and [constant DISTANCE_FADE_PIXEL_DITHER].
+		</constant>
+		<constant name="STENCIL_OP_KEEP" value="0" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_ZERO" value="1" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_REPLACE" value="2" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_INCREMENT_AND_CLAMP" value="3" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_DECREMENT_AND_CLAMP" value="4" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_INVERT" value="5" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_INCREMENT_AND_WRAP" value="6" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_OP_DECREMENT_AND_WRAP" value="7" enum="StencilOperation">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_NEVER" value="0" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_LESS" value="1" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_EQUAL" value="2" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_LESS_OR_EQUAL" value="3" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_GREATER" value="4" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_NOT_EQUAL" value="5" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_GREATER_OR_EQUAL" value="6" enum="StencilCompareOperator">
+		</constant>
+		<constant name="STENCIL_COMPARE_OP_ALWAYS" value="7" enum="StencilCompareOperator">
 		</constant>
 	</constants>
 </class>

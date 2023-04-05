@@ -317,6 +317,30 @@ public:
 		DISTANCE_FADE_MAX
 	};
 
+	enum StencilOperation {
+		STENCIL_OP_KEEP,
+		STENCIL_OP_ZERO,
+		STENCIL_OP_REPLACE,
+		STENCIL_OP_INCREMENT_AND_CLAMP,
+		STENCIL_OP_DECREMENT_AND_CLAMP,
+		STENCIL_OP_INVERT,
+		STENCIL_OP_INCREMENT_AND_WRAP,
+		STENCIL_OP_DECREMENT_AND_WRAP,
+		STENCIL_OP_MAX // not an actual operator, just the amount of operators
+	};
+
+	enum StencilCompareOperator {
+		STENCIL_COMPARE_OP_NEVER,
+		STENCIL_COMPARE_OP_LESS,
+		STENCIL_COMPARE_OP_EQUAL,
+		STENCIL_COMPARE_OP_LESS_OR_EQUAL,
+		STENCIL_COMPARE_OP_GREATER,
+		STENCIL_COMPARE_OP_NOT_EQUAL,
+		STENCIL_COMPARE_OP_GREATER_OR_EQUAL,
+		STENCIL_COMPARE_OP_ALWAYS,
+		STENCIL_COMPARE_OP_MAX // not an actual operator, just the amount of operators
+	};
+
 private:
 	struct MaterialKey {
 		// enum values
@@ -558,6 +582,15 @@ private:
 
 	AlphaAntiAliasing alpha_antialiasing_mode = ALPHA_ANTIALIASING_OFF;
 
+	bool stencil_enabled = false;
+	StencilOperation stencil_fail = STENCIL_OP_KEEP;
+	StencilOperation stencil_pass = STENCIL_OP_KEEP;
+	StencilOperation stencil_depth_fail = STENCIL_OP_KEEP;
+	StencilCompareOperator stencil_compare = STENCIL_COMPARE_OP_NEVER;
+	uint32_t stencil_compare_mask = 255;
+	uint32_t stencil_write_mask = 255;
+	uint32_t stencil_reference = 1;
+
 	bool features[FEATURE_MAX] = {};
 
 	Ref<Texture2D> textures[TEXTURE_MAX];
@@ -771,6 +804,30 @@ public:
 	void set_emission_operator(EmissionOperator p_op);
 	EmissionOperator get_emission_operator() const;
 
+	void set_stencil_enabled(bool p_stencil_enabled);
+	bool is_stencil_enabled() const;
+
+	void set_stencil_fail(StencilOperation p_op);
+	StencilOperation get_stencil_fail() const;
+
+	void set_stencil_pass(StencilOperation p_op);
+	StencilOperation get_stencil_pass() const;
+
+	void set_stencil_depth_fail(StencilOperation p_op);
+	StencilOperation get_stencil_depth_fail() const;
+
+	void set_stencil_compare(StencilCompareOperator p_op);
+	StencilCompareOperator get_stencil_compare() const;
+
+	void set_stencil_compare_mask(uint32_t p_compare_mask);
+	uint32_t get_stencil_compare_mask() const;
+
+	void set_stencil_write_mask(uint32_t p_write_mask);
+	uint32_t get_stencil_write_mask() const;
+
+	void set_stencil_reference(uint32_t p_reference);
+	uint32_t get_stencil_reference() const;
+
 	void set_metallic_texture_channel(TextureChannel p_channel);
 	TextureChannel get_metallic_texture_channel() const;
 	void set_roughness_texture_channel(TextureChannel p_channel);
@@ -812,6 +869,8 @@ VARIANT_ENUM_CAST(BaseMaterial3D::BillboardMode)
 VARIANT_ENUM_CAST(BaseMaterial3D::TextureChannel)
 VARIANT_ENUM_CAST(BaseMaterial3D::EmissionOperator)
 VARIANT_ENUM_CAST(BaseMaterial3D::DistanceFadeMode)
+VARIANT_ENUM_CAST(BaseMaterial3D::StencilOperation)
+VARIANT_ENUM_CAST(BaseMaterial3D::StencilCompareOperator)
 
 class StandardMaterial3D : public BaseMaterial3D {
 	GDCLASS(StandardMaterial3D, BaseMaterial3D)

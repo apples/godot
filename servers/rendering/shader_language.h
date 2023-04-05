@@ -712,6 +712,7 @@ public:
 		HashMap<StringName, Uniform> uniforms;
 		HashMap<StringName, Struct> structs;
 		Vector<StringName> render_modes;
+		HashMap<StringName, int64_t> render_mode_params;
 
 		Vector<Function> functions;
 		Vector<Constant> vconstants;
