@@ -360,10 +360,16 @@ private:
 		uint64_t roughness_channel : get_num_bits(TEXTURE_CHANNEL_MAX - 1);
 		uint64_t emission_op : get_num_bits(EMISSION_OP_MAX - 1);
 		uint64_t distance_fade : get_num_bits(DISTANCE_FADE_MAX - 1);
+		uint64_t stencil_fail : get_num_bits(STENCIL_OP_MAX - 1);
+		uint64_t stencil_pass : get_num_bits(STENCIL_OP_MAX - 1);
+		uint64_t stencil_depth_fail : get_num_bits(STENCIL_OP_MAX - 1);
+		uint64_t stencil_compare : get_num_bits(STENCIL_COMPARE_OP_MAX - 1);
+		uint64_t stencil_bit : 3;
 		// booleans
 		uint64_t deep_parallax : 1;
 		uint64_t grow : 1;
 		uint64_t proximity_fade : 1;
+		uint64_t stencil_enabled : 1;
 
 		// flag bitfield
 		uint32_t feature_mask;
@@ -416,6 +422,13 @@ private:
 		mk.distance_fade = distance_fade;
 		mk.emission_op = emission_op;
 		mk.alpha_antialiasing_mode = alpha_antialiasing_mode;
+
+		mk.stencil_enabled = stencil_enabled;
+		mk.stencil_fail = stencil_fail;
+		mk.stencil_pass = stencil_pass;
+		mk.stencil_depth_fail = stencil_depth_fail;
+		mk.stencil_compare = stencil_compare;
+		mk.stencil_bit = stencil_bit;
 
 		for (int i = 0; i < FEATURE_MAX; i++) {
 			if (features[i]) {
@@ -587,9 +600,7 @@ private:
 	StencilOperation stencil_pass = STENCIL_OP_KEEP;
 	StencilOperation stencil_depth_fail = STENCIL_OP_KEEP;
 	StencilCompareOperator stencil_compare = STENCIL_COMPARE_OP_NEVER;
-	uint32_t stencil_compare_mask = 255;
-	uint32_t stencil_write_mask = 255;
-	uint32_t stencil_reference = 1;
+	int stencil_bit = 0;
 
 	bool features[FEATURE_MAX] = {};
 
@@ -606,6 +617,11 @@ protected:
 	virtual bool _can_use_render_priority() const override { return true; }
 
 public:
+	enum {
+		STENCIL_BIT_MAX = 7,
+		STENCIL_BIT_MIN = 0,
+	};
+
 	void set_albedo(const Color &p_albedo);
 	Color get_albedo() const;
 
@@ -819,14 +835,8 @@ public:
 	void set_stencil_compare(StencilCompareOperator p_op);
 	StencilCompareOperator get_stencil_compare() const;
 
-	void set_stencil_compare_mask(uint32_t p_compare_mask);
-	uint32_t get_stencil_compare_mask() const;
-
-	void set_stencil_write_mask(uint32_t p_write_mask);
-	uint32_t get_stencil_write_mask() const;
-
-	void set_stencil_reference(uint32_t p_reference);
-	uint32_t get_stencil_reference() const;
+	void set_stencil_bit(int p_bit);
+	int get_stencil_bit() const;
 
 	void set_metallic_texture_channel(TextureChannel p_channel);
 	TextureChannel get_metallic_texture_channel() const;

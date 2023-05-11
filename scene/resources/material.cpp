@@ -901,9 +901,9 @@ void BaseMaterial3D::_update_shader() {
 				break;
 		}
 
-		code += vformat(",stencil_reference %s", stencil_reference);
-		code += vformat(",stencil_comparemask %s", stencil_compare_mask);
-		code += vformat(",stencil_writemask %s", stencil_write_mask);
+		code += vformat(",stencil_reference %s", 1 << stencil_bit);
+		code += vformat(",stencil_comparemask %s", 1 << stencil_bit);
+		code += vformat(",stencil_writemask %s", 1 << stencil_bit);
 	}
 
 	code += ";\n";
@@ -2679,43 +2679,20 @@ BaseMaterial3D::StencilCompareOperator BaseMaterial3D::get_stencil_compare() con
 	return stencil_compare;
 }
 
-void BaseMaterial3D::set_stencil_compare_mask(uint32_t p_compare_mask) {
-	if (stencil_compare_mask == p_compare_mask) {
+void BaseMaterial3D::set_stencil_bit(int p_bit) {
+	if (stencil_bit == p_bit) {
 		return;
 	}
 
-	stencil_compare_mask = p_compare_mask;
+	ERR_FAIL_COND(p_bit < STENCIL_BIT_MIN);
+	ERR_FAIL_COND(p_bit > STENCIL_BIT_MAX);
+
+	stencil_bit = p_bit;
 	_queue_shader_change();
 }
 
-uint32_t BaseMaterial3D::get_stencil_compare_mask() const {
-	return stencil_compare_mask;
-}
-
-void BaseMaterial3D::set_stencil_write_mask(uint32_t p_write_mask) {
-	if (stencil_write_mask == p_write_mask) {
-		return;
-	}
-
-	stencil_write_mask = p_write_mask;
-	_queue_shader_change();
-}
-
-uint32_t BaseMaterial3D::get_stencil_write_mask() const {
-	return stencil_write_mask;
-}
-
-void BaseMaterial3D::set_stencil_reference(uint32_t p_reference) {
-	if (stencil_reference == p_reference) {
-		return;
-	}
-
-	stencil_reference = p_reference;
-	_queue_shader_change();
-}
-
-uint32_t BaseMaterial3D::get_stencil_reference() const {
-	return stencil_reference;
+int BaseMaterial3D::get_stencil_bit() const {
+	return stencil_bit;
 }
 
 RID BaseMaterial3D::get_shader_rid() const {
@@ -2956,14 +2933,8 @@ void BaseMaterial3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_stencil_compare", "stencil_compare"), &BaseMaterial3D::set_stencil_compare);
 	ClassDB::bind_method(D_METHOD("get_stencil_compare"), &BaseMaterial3D::get_stencil_compare);
 
-	ClassDB::bind_method(D_METHOD("set_stencil_compare_mask", "stencil_compare_mask"), &BaseMaterial3D::set_stencil_compare_mask);
-	ClassDB::bind_method(D_METHOD("get_stencil_compare_mask"), &BaseMaterial3D::get_stencil_compare_mask);
-
-	ClassDB::bind_method(D_METHOD("set_stencil_write_mask", "stencil_write_mask"), &BaseMaterial3D::set_stencil_write_mask);
-	ClassDB::bind_method(D_METHOD("get_stencil_write_mask"), &BaseMaterial3D::get_stencil_write_mask);
-
-	ClassDB::bind_method(D_METHOD("set_stencil_reference", "stencil_reference"), &BaseMaterial3D::set_stencil_reference);
-	ClassDB::bind_method(D_METHOD("get_stencil_reference"), &BaseMaterial3D::get_stencil_reference);
+	ClassDB::bind_method(D_METHOD("set_stencil_bit", "stencil_bit"), &BaseMaterial3D::set_stencil_bit);
+	ClassDB::bind_method(D_METHOD("get_stencil_bit"), &BaseMaterial3D::get_stencil_bit);
 
 	ADD_GROUP("Transparency", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "transparency", PROPERTY_HINT_ENUM, "Disabled,Alpha,Alpha Scissor,Alpha Hash,Depth Pre-Pass"), "set_transparency", "get_transparency");
@@ -3145,9 +3116,9 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_pass", PROPERTY_HINT_ENUM, "Keep,Zero,Replace,IncrementAndClamp,DecrementAndClamp,Invert,IncrementAndWrap,DecrementAndWrap"), "set_stencil_pass", "get_stencil_pass");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_depth_fail", PROPERTY_HINT_ENUM, "Keep,Zero,Replace,IncrementAndClamp,DecrementAndClamp,Invert,IncrementAndWrap,DecrementAndWrap"), "set_stencil_depth_fail", "get_stencil_depth_fail");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare", PROPERTY_HINT_ENUM, "Never,Less,Equal,LessOrEqual,Greater,NotEqual,GreaterOrEqual,Always"), "set_stencil_compare", "get_stencil_compare");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare_mask"), "set_stencil_compare_mask", "get_stencil_compare_mask");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_write_mask"), "set_stencil_write_mask", "get_stencil_write_mask");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_reference"), "set_stencil_reference", "get_stencil_reference");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_bit", PROPERTY_HINT_RANGE, itos(STENCIL_BIT_MIN) + "," + itos(STENCIL_BIT_MAX) + ",1"), "set_stencil_bit", "get_stencil_bit");
+	BIND_CONSTANT(STENCIL_BIT_MAX);
+	BIND_CONSTANT(STENCIL_BIT_MIN);
 
 	BIND_ENUM_CONSTANT(TEXTURE_ALBEDO);
 	BIND_ENUM_CONSTANT(TEXTURE_METALLIC);
