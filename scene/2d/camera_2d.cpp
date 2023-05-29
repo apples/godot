@@ -569,6 +569,14 @@ Point2 Camera2D::get_camera_screen_center() const {
 Size2 Camera2D::_get_camera_screen_size() const {
 	// special case if the camera2D is in the root viewport
 	if (Engine::get_singleton()->is_editor_hint() && get_viewport()->get_parent_viewport() == get_tree()->get_root()) {
+		Node *edited_scene_root = get_tree()->get_edited_scene_root();
+		if (edited_scene_root != nullptr && edited_scene_root->is_ancestor_of(this)) {
+			Size2 viewport_size_override = edited_scene_root->get_meta("viewport_size", Size2());
+			if (viewport_size_override != Size2()) {
+				return viewport_size_override;
+			}
+		}
+
 		return Size2(GLOBAL_GET("display/window/size/viewport_width"), GLOBAL_GET("display/window/size/viewport_height"));
 	}
 	return get_viewport_rect().size;

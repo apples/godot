@@ -3550,6 +3550,14 @@ void CanvasItemEditor::_draw_axis() {
 
 		Size2 screen_size = Size2(GLOBAL_GET("display/window/size/viewport_width"), GLOBAL_GET("display/window/size/viewport_height"));
 
+		Node *edited_scene_root = get_tree()->get_edited_scene_root();
+		if (edited_scene_root != nullptr) {
+			Size2 viewport_size_override = edited_scene_root->get_meta("viewport_size", Size2());
+			if (viewport_size_override != Size2()) {
+				screen_size = viewport_size_override;
+			}
+		}
+
 		Vector2 screen_endpoints[4] = {
 			transform.xform(Vector2(0, 0)),
 			transform.xform(Vector2(screen_size.width, 0)),
