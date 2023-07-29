@@ -423,6 +423,7 @@ void ShaderTextEditor::_code_complete_script(const String &p_code, List<ScriptLa
 	_check_shader_mode();
 	comp_info.functions = ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(shader->get_mode()));
 	comp_info.render_modes = ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode()));
+	comp_info.stencil_modes = ShaderTypes::get_singleton()->get_stencil_modes(RenderingServer::ShaderMode(shader->get_mode()));
 	comp_info.shader_types = ShaderTypes::get_singleton()->get_types();
 
 	sl.complete(code, comp_info, r_options, calltip);
@@ -527,6 +528,7 @@ void ShaderTextEditor::_validate_script() {
 			Shader::Mode mode = shader->get_mode();
 			comp_info.functions = ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(mode));
 			comp_info.render_modes = ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(mode));
+			comp_info.stencil_modes = ShaderTypes::get_singleton()->get_stencil_modes(RenderingServer::ShaderMode(mode));
 			comp_info.shader_types = ShaderTypes::get_singleton()->get_types();
 		}
 

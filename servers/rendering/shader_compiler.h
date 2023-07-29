@@ -48,10 +48,11 @@ public:
 		HashMap<StringName, Stage> entry_point_stages;
 
 		HashMap<StringName, Pair<int *, int>> render_mode_values;
-		HashMap<StringName, int *> render_mode_params;
 		HashMap<StringName, bool *> render_mode_flags;
 		HashMap<StringName, bool *> usage_flag_pointers;
 		HashMap<StringName, bool *> write_flag_pointers;
+		HashMap<StringName, Pair<int *, int>> stencil_mode_values;
+		int *stencil_reference;
 
 		HashMap<StringName, ShaderLanguage::ShaderNode::Uniform> *uniforms;
 	};

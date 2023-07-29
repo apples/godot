@@ -826,126 +826,52 @@ void BaseMaterial3D::_update_shader() {
 		}
 	}
 
-	if (stencil_enabled) {
-		switch (stencil_compare) {
-			case STENCIL_COMPARE_OP_NEVER:
-				code += ",stencil_compare_never";
-				break;
-			case STENCIL_COMPARE_OP_LESS:
-				code += ",stencil_compare_less";
-				break;
-			case STENCIL_COMPARE_OP_EQUAL:
-				code += ",stencil_compare_equal";
-				break;
-			case STENCIL_COMPARE_OP_LESS_OR_EQUAL:
-				code += ",stencil_compare_lequal";
-				break;
-			case STENCIL_COMPARE_OP_GREATER:
-				code += ",stencil_compare_greater";
-				break;
-			case STENCIL_COMPARE_OP_NOT_EQUAL:
-				code += ",stencil_compare_notequal";
-				break;
-			case STENCIL_COMPARE_OP_GREATER_OR_EQUAL:
-				code += ",stencil_compare_gequal";
-				break;
-			case STENCIL_COMPARE_OP_ALWAYS:
-				code += ",stencil_compare_always";
-				break;
-			default:
-				break;
-		}
-
-		switch (stencil_fail) {
-			case STENCIL_OP_KEEP:
-				break;
-			case STENCIL_OP_ZERO:
-				code += ",stencil_fail_zero";
-				break;
-			case STENCIL_OP_REPLACE:
-				code += ",stencil_fail_replace";
-				break;
-			case STENCIL_OP_INCREMENT_AND_CLAMP:
-				code += ",stencil_fail_incclamp";
-				break;
-			case STENCIL_OP_DECREMENT_AND_CLAMP:
-				code += ",stencil_fail_decclamp";
-				break;
-			case STENCIL_OP_INVERT:
-				code += ",stencil_fail_invert";
-				break;
-			case STENCIL_OP_INCREMENT_AND_WRAP:
-				code += ",stencil_fail_incwrap";
-				break;
-			case STENCIL_OP_DECREMENT_AND_WRAP:
-				code += ",stencil_fail_decwrap";
-				break;
-			default:
-				break;
-		}
-
-		switch (stencil_pass) {
-			case STENCIL_OP_KEEP:
-				break;
-			case STENCIL_OP_ZERO:
-				code += ",stencil_pass_zero";
-				break;
-			case STENCIL_OP_REPLACE:
-				code += ",stencil_pass_replace";
-				break;
-			case STENCIL_OP_INCREMENT_AND_CLAMP:
-				code += ",stencil_pass_incclamp";
-				break;
-			case STENCIL_OP_DECREMENT_AND_CLAMP:
-				code += ",stencil_pass_decclamp";
-				break;
-			case STENCIL_OP_INVERT:
-				code += ",stencil_pass_invert";
-				break;
-			case STENCIL_OP_INCREMENT_AND_WRAP:
-				code += ",stencil_pass_incwrap";
-				break;
-			case STENCIL_OP_DECREMENT_AND_WRAP:
-				code += ",stencil_pass_decwrap";
-				break;
-			default:
-				break;
-		}
-
-		switch (stencil_depth_fail) {
-			case STENCIL_OP_KEEP:
-				break;
-			case STENCIL_OP_ZERO:
-				code += ",stencil_depthfail_zero";
-				break;
-			case STENCIL_OP_REPLACE:
-				code += ",stencil_depthfail_replace";
-				break;
-			case STENCIL_OP_INCREMENT_AND_CLAMP:
-				code += ",stencil_depthfail_incclamp";
-				break;
-			case STENCIL_OP_DECREMENT_AND_CLAMP:
-				code += ",stencil_depthfail_decclamp";
-				break;
-			case STENCIL_OP_INVERT:
-				code += ",stencil_depthfail_invert";
-				break;
-			case STENCIL_OP_INCREMENT_AND_WRAP:
-				code += ",stencil_depthfail_incwrap";
-				break;
-			case STENCIL_OP_DECREMENT_AND_WRAP:
-				code += ",stencil_depthfail_decwrap";
-				break;
-			default:
-				break;
-		}
-
-		code += vformat(",stencil_comparemask %s", 1 << stencil_bit);
-		code += vformat(",stencil_writemask %s", 1 << stencil_bit);
-		code += vformat(",stencil_reference %s", stencil_reference);
-	}
-
 	code += ";\n";
+
+	if (stencil_mode != STENCIL_MODE_DISABLED) {
+		code += "stencil_mode ";
+
+		switch (stencil_rw) {
+			case STENCIL_RW_READ_ONLY:
+				code += "rw_read_only,";
+				break;
+			case STENCIL_RW_WRITE_ONLY:
+				code += "rw_write_only,";
+				break;
+			case STENCIL_RW_READ_WRITE:
+				code += "rw_read_write,";
+				break;
+			case STENCIL_RW_WRITE_DEPTH_FAIL:
+				code += "rw_write_depth_fail,";
+				break;
+		}
+
+		switch (stencil_compare) {
+			case STENCIL_COMPARE_LESS:
+				code += "compare_less,";
+				break;
+			case STENCIL_COMPARE_EQUAL:
+				code += "compare_equal,";
+				break;
+			case STENCIL_COMPARE_LESS_OR_EQUAL:
+				code += "compare_less_or_equal,";
+				break;
+			case STENCIL_COMPARE_GREATER:
+				code += "compare_greater,";
+				break;
+			case STENCIL_COMPARE_NOT_EQUAL:
+				code += "compare_not_equal,";
+				break;
+			case STENCIL_COMPARE_GREATER_OR_EQUAL:
+				code += "compare_greater_or_equal,";
+				break;
+			case STENCIL_COMPARE_ALWAYS:
+				code += "compare_always,";
+				break;
+		}
+
+		code += vformat("%s;\n", stencil_reference);
+	}
 
 	code += "uniform vec4 albedo : source_color;\n";
 	code += "uniform sampler2D texture_albedo : source_color," + texfilter_str + ";\n";
@@ -2653,59 +2579,100 @@ BaseMaterial3D::EmissionOperator BaseMaterial3D::get_emission_operator() const {
 	return emission_op;
 }
 
-void BaseMaterial3D::set_stencil_enabled(bool p_stencil_enabled) {
-	if (stencil_enabled == p_stencil_enabled) {
+void BaseMaterial3D::_prepare_stencil_effect() {
+	const Ref<Material> current_next_pass = get_next_pass();
+
+	if (stencil_mode == STENCIL_MODE_DISABLED || stencil_mode == STENCIL_MODE_CUSTOM) {
+		if (current_next_pass.is_valid() && current_next_pass->has_meta("_stencil_owned")) {
+			set_next_pass(current_next_pass->get_next_pass());
+		}
 		return;
 	}
 
-	stencil_enabled = p_stencil_enabled;
-	_queue_shader_change();
+	Ref<BaseMaterial3D> stencil_next_pass;
+
+	if (!current_next_pass.is_valid() || !current_next_pass->has_meta("_stencil_owned")) {
+		stencil_next_pass = Ref<BaseMaterial3D>(memnew(StandardMaterial3D));
+		stencil_next_pass->set_meta("_stencil_owned", true);
+		stencil_next_pass->set_next_pass(current_next_pass);
+		set_next_pass(stencil_next_pass);
+	} else {
+		stencil_next_pass = current_next_pass;
+	}
+
+	switch (stencil_mode) {
+		case STENCIL_MODE_OUTLINE:
+			set_stencil_rw(STENCIL_RW_WRITE_ONLY);
+			set_stencil_compare(STENCIL_COMPARE_ALWAYS);
+			stencil_next_pass->set_render_priority(-1);
+			stencil_next_pass->set_shading_mode(SHADING_MODE_UNSHADED);
+			stencil_next_pass->set_transparency(TRANSPARENCY_ALPHA);
+			stencil_next_pass->set_flag(FLAG_DISABLE_DEPTH_TEST, false);
+			stencil_next_pass->set_grow_enabled(true);
+			stencil_next_pass->set_grow(stencil_effect_outline_thickness);
+			stencil_next_pass->set_albedo(stencil_effect_color);
+			stencil_next_pass->set_stencil_mode(STENCIL_MODE_CUSTOM);
+			stencil_next_pass->set_stencil_rw(STENCIL_RW_READ_WRITE);
+			stencil_next_pass->set_stencil_compare(STENCIL_COMPARE_NOT_EQUAL);
+			stencil_next_pass->set_stencil_reference(stencil_reference);
+			break;
+		case STENCIL_MODE_XRAY:
+			set_stencil_rw(STENCIL_RW_WRITE_ONLY);
+			set_stencil_compare(STENCIL_COMPARE_ALWAYS);
+			stencil_next_pass->set_render_priority(-1);
+			stencil_next_pass->set_shading_mode(SHADING_MODE_UNSHADED);
+			stencil_next_pass->set_transparency(TRANSPARENCY_ALPHA);
+			stencil_next_pass->set_flag(FLAG_DISABLE_DEPTH_TEST, true);
+			stencil_next_pass->set_grow_enabled(false);
+			stencil_next_pass->set_grow(0);
+			stencil_next_pass->set_albedo(stencil_effect_color);
+			stencil_next_pass->set_stencil_mode(STENCIL_MODE_CUSTOM);
+			stencil_next_pass->set_stencil_rw(STENCIL_RW_READ_WRITE);
+			stencil_next_pass->set_stencil_compare(STENCIL_COMPARE_NOT_EQUAL);
+			stencil_next_pass->set_stencil_reference(stencil_reference);
+			break;
+	}
 }
 
-bool BaseMaterial3D::is_stencil_enabled() const {
-	return stencil_enabled;
+Ref<BaseMaterial3D> BaseMaterial3D::_get_stencil_next_pass() const {
+	const Ref<Material> current_next_pass = get_next_pass();
+	Ref<BaseMaterial3D> stencil_next_pass;
+
+	if (current_next_pass.is_valid() && current_next_pass->has_meta("_stencil_owned")) {
+		stencil_next_pass = current_next_pass;
+	}
+
+	return stencil_next_pass;
 }
 
-void BaseMaterial3D::set_stencil_fail(BaseMaterial3D::StencilOperation p_op) {
-	if (stencil_fail == p_op) {
+void BaseMaterial3D::set_stencil_mode(StencilMode p_stencil_mode) {
+	if (stencil_mode == p_stencil_mode) {
 		return;
 	}
 
-	stencil_fail = p_op;
+	stencil_mode = p_stencil_mode;
+	_prepare_stencil_effect();
 	_queue_shader_change();
 }
 
-BaseMaterial3D::StencilOperation BaseMaterial3D::get_stencil_fail() const {
-	return stencil_fail;
+BaseMaterial3D::StencilMode BaseMaterial3D::get_stencil_mode() const {
+	return stencil_mode;
 }
 
-void BaseMaterial3D::set_stencil_pass(BaseMaterial3D::StencilOperation p_op) {
-	if (stencil_pass == p_op) {
+void BaseMaterial3D::set_stencil_rw(StencilRW p_stencil_rw) {
+	if (stencil_rw == p_stencil_rw) {
 		return;
 	}
 
-	stencil_pass = p_op;
+	stencil_rw = p_stencil_rw;
 	_queue_shader_change();
 }
 
-BaseMaterial3D::StencilOperation BaseMaterial3D::get_stencil_pass() const {
-	return stencil_pass;
+BaseMaterial3D::StencilRW BaseMaterial3D::get_stencil_rw() const {
+	return stencil_rw;
 }
 
-void BaseMaterial3D::set_stencil_depth_fail(BaseMaterial3D::StencilOperation p_op) {
-	if (stencil_depth_fail == p_op) {
-		return;
-	}
-
-	stencil_depth_fail = p_op;
-	_queue_shader_change();
-}
-
-BaseMaterial3D::StencilOperation BaseMaterial3D::get_stencil_depth_fail() const {
-	return stencil_depth_fail;
-}
-
-void BaseMaterial3D::set_stencil_compare(BaseMaterial3D::StencilCompareOperator p_op) {
+void BaseMaterial3D::set_stencil_compare(BaseMaterial3D::StencilCompare p_op) {
 	if (stencil_compare == p_op) {
 		return;
 	}
@@ -2714,32 +2681,60 @@ void BaseMaterial3D::set_stencil_compare(BaseMaterial3D::StencilCompareOperator 
 	_queue_shader_change();
 }
 
-BaseMaterial3D::StencilCompareOperator BaseMaterial3D::get_stencil_compare() const {
+BaseMaterial3D::StencilCompare BaseMaterial3D::get_stencil_compare() const {
 	return stencil_compare;
 }
 
-void BaseMaterial3D::set_stencil_bit(int p_bit) {
-	if (stencil_bit == p_bit) {
+void BaseMaterial3D::set_stencil_reference(int p_reference) {
+	if (stencil_reference == p_reference) {
 		return;
 	}
 
-	ERR_FAIL_COND(p_bit < STENCIL_BIT_MIN);
-	ERR_FAIL_COND(p_bit > STENCIL_BIT_MAX);
-
-	stencil_bit = p_bit;
-	_queue_shader_change();
-}
-
-int BaseMaterial3D::get_stencil_bit() const {
-	return stencil_bit;
-}
-
-void BaseMaterial3D::set_stencil_reference(int p_reference) {
 	stencil_reference = p_reference;
 	_queue_shader_change();
+
+	Ref<BaseMaterial3D> stencil_next_pass = _get_stencil_next_pass();
+	if (stencil_next_pass.is_valid()) {
+		stencil_next_pass->set_stencil_reference(p_reference);
+	}
 }
+
 int BaseMaterial3D::get_stencil_reference() const {
 	return stencil_reference;
+}
+
+void BaseMaterial3D::set_stencil_effect_color(Color p_color) {
+	if (stencil_effect_color == p_color) {
+		return;
+	}
+
+	stencil_effect_color = p_color;
+
+	Ref<BaseMaterial3D> stencil_next_pass = _get_stencil_next_pass();
+	if (stencil_next_pass.is_valid()) {
+		stencil_next_pass->set_albedo(p_color);
+	}
+}
+
+Color BaseMaterial3D::get_stencil_effect_color() const {
+	return stencil_effect_color;
+}
+
+void BaseMaterial3D::set_stencil_effect_outline_thickness(float p_outline_thickness) {
+	if (stencil_effect_outline_thickness == p_outline_thickness) {
+		return;
+	}
+
+	stencil_effect_outline_thickness = p_outline_thickness;
+
+	Ref<BaseMaterial3D> stencil_next_pass = _get_stencil_next_pass();
+	if (stencil_next_pass.is_valid()) {
+		stencil_next_pass->set_grow(p_outline_thickness);
+	}
+}
+
+float BaseMaterial3D::get_stencil_effect_outline_thickness() const {
+	return stencil_effect_outline_thickness;
 }
 
 RID BaseMaterial3D::get_shader_rid() const {
@@ -2965,26 +2960,23 @@ void BaseMaterial3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_distance_fade_min_distance", "distance"), &BaseMaterial3D::set_distance_fade_min_distance);
 	ClassDB::bind_method(D_METHOD("get_distance_fade_min_distance"), &BaseMaterial3D::get_distance_fade_min_distance);
 
-	ClassDB::bind_method(D_METHOD("set_stencil_enabled", "stencil_enabled"), &BaseMaterial3D::set_stencil_enabled);
-	ClassDB::bind_method(D_METHOD("is_stencil_enabled"), &BaseMaterial3D::is_stencil_enabled);
+	ClassDB::bind_method(D_METHOD("set_stencil_mode", "stencil_mode"), &BaseMaterial3D::set_stencil_mode);
+	ClassDB::bind_method(D_METHOD("get_stencil_mode"), &BaseMaterial3D::get_stencil_mode);
 
-	ClassDB::bind_method(D_METHOD("set_stencil_fail", "stencil_fail"), &BaseMaterial3D::set_stencil_fail);
-	ClassDB::bind_method(D_METHOD("get_stencil_fail"), &BaseMaterial3D::get_stencil_fail);
-
-	ClassDB::bind_method(D_METHOD("set_stencil_pass", "stencil_pass"), &BaseMaterial3D::set_stencil_pass);
-	ClassDB::bind_method(D_METHOD("get_stencil_pass"), &BaseMaterial3D::get_stencil_pass);
-
-	ClassDB::bind_method(D_METHOD("set_stencil_depth_fail", "stencil_depth_fail"), &BaseMaterial3D::set_stencil_depth_fail);
-	ClassDB::bind_method(D_METHOD("get_stencil_depth_fail"), &BaseMaterial3D::get_stencil_depth_fail);
+	ClassDB::bind_method(D_METHOD("set_stencil_rw", "stencil_rw"), &BaseMaterial3D::set_stencil_rw);
+	ClassDB::bind_method(D_METHOD("get_stencil_rw"), &BaseMaterial3D::get_stencil_rw);
 
 	ClassDB::bind_method(D_METHOD("set_stencil_compare", "stencil_compare"), &BaseMaterial3D::set_stencil_compare);
 	ClassDB::bind_method(D_METHOD("get_stencil_compare"), &BaseMaterial3D::get_stencil_compare);
 
-	ClassDB::bind_method(D_METHOD("set_stencil_bit", "stencil_bit"), &BaseMaterial3D::set_stencil_bit);
-	ClassDB::bind_method(D_METHOD("get_stencil_bit"), &BaseMaterial3D::get_stencil_bit);
-
-	ClassDB::bind_method(D_METHOD("set_stencil_reference", "stencil_ref"), &BaseMaterial3D::set_stencil_reference);
+	ClassDB::bind_method(D_METHOD("set_stencil_reference", "stencil_reference"), &BaseMaterial3D::set_stencil_reference);
 	ClassDB::bind_method(D_METHOD("get_stencil_reference"), &BaseMaterial3D::get_stencil_reference);
+
+	ClassDB::bind_method(D_METHOD("set_stencil_effect_color", "stencil_color"), &BaseMaterial3D::set_stencil_effect_color);
+	ClassDB::bind_method(D_METHOD("get_stencil_effect_color"), &BaseMaterial3D::get_stencil_effect_color);
+
+	ClassDB::bind_method(D_METHOD("set_stencil_effect_outline_thickness", "stencil_outline_thickness"), &BaseMaterial3D::set_stencil_effect_outline_thickness);
+	ClassDB::bind_method(D_METHOD("get_stencil_effect_outline_thickness"), &BaseMaterial3D::get_stencil_effect_outline_thickness);
 
 	ADD_GROUP("Transparency", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "transparency", PROPERTY_HINT_ENUM, "Disabled,Alpha,Alpha Scissor,Alpha Hash,Depth Pre-Pass"), "set_transparency", "get_transparency");
@@ -3162,16 +3154,13 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "distance_fade_max_distance", PROPERTY_HINT_RANGE, "0,4096,0.01,suffix:m"), "set_distance_fade_max_distance", "get_distance_fade_max_distance");
 
 	ADD_GROUP("Stencil", "stencil_");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stencil_enabled"), "set_stencil_enabled", "is_stencil_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_fail", PROPERTY_HINT_ENUM, "Keep,Zero,Replace,IncrementAndClamp,DecrementAndClamp,Invert,IncrementAndWrap,DecrementAndWrap"), "set_stencil_fail", "get_stencil_fail");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_pass", PROPERTY_HINT_ENUM, "Keep,Zero,Replace,IncrementAndClamp,DecrementAndClamp,Invert,IncrementAndWrap,DecrementAndWrap"), "set_stencil_pass", "get_stencil_pass");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_depth_fail", PROPERTY_HINT_ENUM, "Keep,Zero,Replace,IncrementAndClamp,DecrementAndClamp,Invert,IncrementAndWrap,DecrementAndWrap"), "set_stencil_depth_fail", "get_stencil_depth_fail");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare", PROPERTY_HINT_ENUM, "Never,Less,Equal,LessOrEqual,Greater,NotEqual,GreaterOrEqual,Always"), "set_stencil_compare", "get_stencil_compare");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_bit", PROPERTY_HINT_RANGE, itos(STENCIL_BIT_MIN) + "," + itos(STENCIL_BIT_MAX) + ",1"), "set_stencil_bit", "get_stencil_bit");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_mode", PROPERTY_HINT_ENUM, "Disabled,Outline,Xray,Custom"), "set_stencil_mode", "get_stencil_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_rw", PROPERTY_HINT_ENUM, "Read Only,Write Only,Read Write,Write Depth Fail"), "set_stencil_rw", "get_stencil_rw");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare", PROPERTY_HINT_ENUM, "Less,Equal,LessOrEqual,Greater,NotEqual,GreaterOrEqual,Always"), "set_stencil_compare", "get_stencil_compare");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_reference"), "set_stencil_reference", "get_stencil_reference");
 
-	BIND_CONSTANT(STENCIL_BIT_MAX);
-	BIND_CONSTANT(STENCIL_BIT_MIN);
+	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "stencil_color", PROPERTY_HINT_NONE), "set_stencil_effect_color", "get_stencil_effect_color");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "stencil_outline_thickness", PROPERTY_HINT_NONE), "set_stencil_effect_outline_thickness", "get_stencil_effect_outline_thickness");
 
 	BIND_ENUM_CONSTANT(TEXTURE_ALBEDO);
 	BIND_ENUM_CONSTANT(TEXTURE_METALLIC);
@@ -3308,23 +3297,23 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(DISTANCE_FADE_PIXEL_DITHER);
 	BIND_ENUM_CONSTANT(DISTANCE_FADE_OBJECT_DITHER);
 
-	BIND_ENUM_CONSTANT(STENCIL_OP_KEEP);
-	BIND_ENUM_CONSTANT(STENCIL_OP_ZERO);
-	BIND_ENUM_CONSTANT(STENCIL_OP_REPLACE);
-	BIND_ENUM_CONSTANT(STENCIL_OP_INCREMENT_AND_CLAMP);
-	BIND_ENUM_CONSTANT(STENCIL_OP_DECREMENT_AND_CLAMP);
-	BIND_ENUM_CONSTANT(STENCIL_OP_INVERT);
-	BIND_ENUM_CONSTANT(STENCIL_OP_INCREMENT_AND_WRAP);
-	BIND_ENUM_CONSTANT(STENCIL_OP_DECREMENT_AND_WRAP);
+	BIND_ENUM_CONSTANT(STENCIL_MODE_DISABLED);
+	BIND_ENUM_CONSTANT(STENCIL_MODE_OUTLINE);
+	BIND_ENUM_CONSTANT(STENCIL_MODE_XRAY);
+	BIND_ENUM_CONSTANT(STENCIL_MODE_CUSTOM);
 
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_NEVER);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_LESS);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_EQUAL);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_LESS_OR_EQUAL);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_GREATER);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_NOT_EQUAL);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_GREATER_OR_EQUAL);
-	BIND_ENUM_CONSTANT(STENCIL_COMPARE_OP_ALWAYS);
+	BIND_ENUM_CONSTANT(STENCIL_RW_READ_ONLY);
+	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_ONLY);
+	BIND_ENUM_CONSTANT(STENCIL_RW_READ_WRITE);
+	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_DEPTH_FAIL);
+
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_LESS);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_EQUAL);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_LESS_OR_EQUAL);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_GREATER);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_NOT_EQUAL);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_GREATER_OR_EQUAL);
+	BIND_ENUM_CONSTANT(STENCIL_COMPARE_ALWAYS);
 }
 
 BaseMaterial3D::BaseMaterial3D(bool p_orm) :
@@ -3389,6 +3378,8 @@ BaseMaterial3D::BaseMaterial3D(bool p_orm) :
 	set_heightmap_deep_parallax_min_layers(8);
 	set_heightmap_deep_parallax_max_layers(32);
 	set_heightmap_deep_parallax_flip_tangent(false); //also sets binormal
+
+	set_stencil_mode(STENCIL_MODE_DISABLED);
 
 	flags[FLAG_ALBEDO_TEXTURE_MSDF] = false;
 	flags[FLAG_USE_TEXTURE_REPEAT] = true;

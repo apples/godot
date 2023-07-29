@@ -361,19 +361,17 @@
 			The method for rendering the specular blob. See [enum SpecularMode].
 			[b]Note:[/b] [member specular_mode] only applies to the specular blob. It does not affect specular reflections from the sky, screen-space reflections, [VoxelGI], SDFGI or [ReflectionProbe]s. To disable reflections from these sources as well, set [member metallic_specular] to [code]0.0[/code] instead.
 		</member>
-		<member name="stencil_bit" type="int" setter="set_stencil_bit" getter="get_stencil_bit" default="0">
+		<member name="stencil_color" type="Color" setter="set_stencil_effect_color" getter="get_stencil_effect_color" default="Color(0, 0, 0, 0)">
 		</member>
-		<member name="stencil_compare" type="int" setter="set_stencil_compare" getter="get_stencil_compare" enum="BaseMaterial3D.StencilCompareOperator" default="0">
+		<member name="stencil_compare" type="int" setter="set_stencil_compare" getter="get_stencil_compare" enum="BaseMaterial3D.StencilCompare" default="1">
 		</member>
-		<member name="stencil_depth_fail" type="int" setter="set_stencil_depth_fail" getter="get_stencil_depth_fail" enum="BaseMaterial3D.StencilOperation" default="0">
+		<member name="stencil_mode" type="int" setter="set_stencil_mode" getter="get_stencil_mode" enum="BaseMaterial3D.StencilMode" default="0">
 		</member>
-		<member name="stencil_enabled" type="bool" setter="set_stencil_enabled" getter="is_stencil_enabled" default="false">
+		<member name="stencil_outline_thickness" type="float" setter="set_stencil_effect_outline_thickness" getter="get_stencil_effect_outline_thickness" default="0.0">
 		</member>
-		<member name="stencil_fail" type="int" setter="set_stencil_fail" getter="get_stencil_fail" enum="BaseMaterial3D.StencilOperation" default="0">
+		<member name="stencil_reference" type="int" setter="set_stencil_reference" getter="get_stencil_reference" default="0">
 		</member>
-		<member name="stencil_pass" type="int" setter="set_stencil_pass" getter="get_stencil_pass" enum="BaseMaterial3D.StencilOperation" default="0">
-		</member>
-		<member name="stencil_reference" type="int" setter="set_stencil_reference" getter="get_stencil_reference" default="1">
+		<member name="stencil_rw" type="int" setter="set_stencil_rw" getter="get_stencil_rw" enum="BaseMaterial3D.StencilRW" default="0">
 		</member>
 		<member name="subsurf_scatter_enabled" type="bool" setter="set_feature" getter="get_feature" default="false">
 			If [code]true[/code], subsurface scattering is enabled. Emulates light that penetrates an object's surface, is scattered, and then emerges. Subsurface scattering quality is controlled by [member ProjectSettings.rendering/environment/subsurface_scattering/subsurface_scattering_quality].
@@ -460,10 +458,6 @@
 		</member>
 	</members>
 	<constants>
-		<constant name="STENCIL_BIT_MAX" value="7">
-		</constant>
-		<constant name="STENCIL_BIT_MIN" value="0">
-		</constant>
 		<constant name="TEXTURE_ALBEDO" value="0" enum="TextureParam">
 			Texture specifying per-pixel color.
 		</constant>
@@ -818,37 +812,35 @@
 		<constant name="DISTANCE_FADE_OBJECT_DITHER" value="3" enum="DistanceFadeMode">
 			Smoothly fades the object out based on the object's distance from the camera using a dithering approach. Dithering discards pixels based on a set pattern to smoothly fade without enabling transparency. On certain hardware, this can be faster than [constant DISTANCE_FADE_PIXEL_ALPHA] and [constant DISTANCE_FADE_PIXEL_DITHER].
 		</constant>
-		<constant name="STENCIL_OP_KEEP" value="0" enum="StencilOperation">
+		<constant name="STENCIL_MODE_DISABLED" value="0" enum="StencilMode">
 		</constant>
-		<constant name="STENCIL_OP_ZERO" value="1" enum="StencilOperation">
+		<constant name="STENCIL_MODE_OUTLINE" value="1" enum="StencilMode">
 		</constant>
-		<constant name="STENCIL_OP_REPLACE" value="2" enum="StencilOperation">
+		<constant name="STENCIL_MODE_XRAY" value="2" enum="StencilMode">
 		</constant>
-		<constant name="STENCIL_OP_INCREMENT_AND_CLAMP" value="3" enum="StencilOperation">
+		<constant name="STENCIL_MODE_CUSTOM" value="3" enum="StencilMode">
 		</constant>
-		<constant name="STENCIL_OP_DECREMENT_AND_CLAMP" value="4" enum="StencilOperation">
+		<constant name="STENCIL_RW_READ_ONLY" value="0" enum="StencilRW">
 		</constant>
-		<constant name="STENCIL_OP_INVERT" value="5" enum="StencilOperation">
+		<constant name="STENCIL_RW_WRITE_ONLY" value="1" enum="StencilRW">
 		</constant>
-		<constant name="STENCIL_OP_INCREMENT_AND_WRAP" value="6" enum="StencilOperation">
+		<constant name="STENCIL_RW_READ_WRITE" value="2" enum="StencilRW">
 		</constant>
-		<constant name="STENCIL_OP_DECREMENT_AND_WRAP" value="7" enum="StencilOperation">
+		<constant name="STENCIL_RW_WRITE_DEPTH_FAIL" value="3" enum="StencilRW">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_NEVER" value="0" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_LESS" value="0" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_LESS" value="1" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_EQUAL" value="1" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_EQUAL" value="2" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_LESS_OR_EQUAL" value="2" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_LESS_OR_EQUAL" value="3" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_GREATER" value="3" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_GREATER" value="4" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_NOT_EQUAL" value="4" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_NOT_EQUAL" value="5" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_GREATER_OR_EQUAL" value="5" enum="StencilCompare">
 		</constant>
-		<constant name="STENCIL_COMPARE_OP_GREATER_OR_EQUAL" value="6" enum="StencilCompareOperator">
-		</constant>
-		<constant name="STENCIL_COMPARE_OP_ALWAYS" value="7" enum="StencilCompareOperator">
+		<constant name="STENCIL_COMPARE_ALWAYS" value="6" enum="StencilCompare">
 		</constant>
 	</constants>
 </class>
