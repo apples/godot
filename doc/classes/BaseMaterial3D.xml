@@ -828,6 +828,8 @@
 		</constant>
 		<constant name="STENCIL_RW_WRITE_DEPTH_FAIL" value="3" enum="StencilRW">
 		</constant>
+		<constant name="STENCIL_RW_WRITE_ALWAYS" value="4" enum="StencilRW">
+		</constant>
 		<constant name="STENCIL_COMPARE_LESS" value="0" enum="StencilCompare">
 		</constant>
 		<constant name="STENCIL_COMPARE_EQUAL" value="1" enum="StencilCompare">

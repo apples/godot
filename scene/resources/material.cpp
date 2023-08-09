@@ -844,6 +844,9 @@ void BaseMaterial3D::_update_shader() {
 			case STENCIL_RW_WRITE_DEPTH_FAIL:
 				code += "rw_write_depth_fail,";
 				break;
+			case STENCIL_RW_WRITE_ALWAYS:
+				code += "rw_write_always,";
+				break;
 		}
 
 		switch (stencil_compare) {
@@ -3155,7 +3158,7 @@ void BaseMaterial3D::_bind_methods() {
 
 	ADD_GROUP("Stencil", "stencil_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_mode", PROPERTY_HINT_ENUM, "Disabled,Outline,Xray,Custom"), "set_stencil_mode", "get_stencil_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_rw", PROPERTY_HINT_ENUM, "Read Only,Write Only,Read Write,Write Depth Fail"), "set_stencil_rw", "get_stencil_rw");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_rw", PROPERTY_HINT_ENUM, "Read Only,Write Only,Read Write,Write Depth Fail,Write Always"), "set_stencil_rw", "get_stencil_rw");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare", PROPERTY_HINT_ENUM, "Less,Equal,LessOrEqual,Greater,NotEqual,GreaterOrEqual,Always"), "set_stencil_compare", "get_stencil_compare");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_reference"), "set_stencil_reference", "get_stencil_reference");
 
@@ -3306,6 +3309,7 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_ONLY);
 	BIND_ENUM_CONSTANT(STENCIL_RW_READ_WRITE);
 	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_DEPTH_FAIL);
+	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_ALWAYS);
 
 	BIND_ENUM_CONSTANT(STENCIL_COMPARE_LESS);
 	BIND_ENUM_CONSTANT(STENCIL_COMPARE_EQUAL);

@@ -157,6 +157,7 @@ public:
 			STENCIL_RW_WRITE_ONLY,
 			STENCIL_RW_READ_WRITE,
 			STENCIL_RW_WRITE_DEPTH_FAIL,
+			STENCIL_RW_WRITE_ALWAYS,
 			STENCIL_RW_MAX // not an actual operator, just the amount of operators
 		};
 

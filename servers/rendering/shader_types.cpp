@@ -233,7 +233,7 @@ ShaderTypes::ShaderTypes() {
 		shader_modes[RS::SHADER_SPATIAL].modes.push_back({ PNAME("alpha_to_coverage_and_one") });
 		shader_modes[RS::SHADER_SPATIAL].modes.push_back({ PNAME("debug_shadow_splits") });
 		shader_modes[RS::SHADER_SPATIAL].modes.push_back({ PNAME("fog_disabled") });
-		shader_modes[RS::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("rw"), { "disabled", "read_only", "write_only", "read_write", "write_depth_fail" } });
+		shader_modes[RS::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("rw"), { "disabled", "read_only", "write_only", "read_write", "write_depth_fail", "write_always" } });
 		shader_modes[RS::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("compare"), { "less", "equal", "less_or_equal", "greater", "not_equal", "greater_or_equal", "always" } });
 	}
 
