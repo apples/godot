@@ -349,7 +349,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 		depth_stencil_state.back_op = op;
 	}
 
-	bool depth_pre_pass_enabled = bool(GLOBAL_GET("rendering/driver/depth_prepass/enable"));
+	bool depth_pre_pass_enabled = !stencil_enabled && bool(GLOBAL_GET("rendering/driver/depth_prepass/enable"));
 
 	for (int i = 0; i < CULL_VARIANT_MAX; i++) {
 		RD::PolygonCullMode cull_mode_rd_table[CULL_VARIANT_MAX][3] = {
