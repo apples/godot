@@ -846,22 +846,22 @@
 			Always writes to the stencil buffer, including when the object fails the depth test.
 		</constant>
 		<constant name="STENCIL_COMPARE_LESS" value="0" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is less than the reference value.
+			Passes the stencil test when the reference value is less than the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_EQUAL" value="1" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is equal to the reference value.
+			Passes the stencil test when the reference value is equal to the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_LESS_OR_EQUAL" value="2" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is less than or equal to the reference value.
+			Passes the stencil test when the reference value is less than or equal to the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_GREATER" value="3" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is greater than the reference value.
+			Passes the stencil test when the reference value is greater than the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_NOT_EQUAL" value="4" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is not equal to the reference value.
+			Passes the stencil test when the reference value is not equal to the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_GREATER_OR_EQUAL" value="5" enum="StencilCompare">
-			Passes the stencil test when the existing stencil value is greater than or equal to the reference value.
+			Passes the stencil test when the reference value is greater than or equal to the existing stencil value.
 		</constant>
 		<constant name="STENCIL_COMPARE_ALWAYS" value="6" enum="StencilCompare">
 			Always passes the stencil test.

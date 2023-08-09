@@ -314,6 +314,9 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 			RD::COMPARE_OP_ALWAYS,
 		};
 
+		bool stencil_mask_uses_ref = bool(GLOBAL_GET("rendering/driver/stencil/mask_uses_ref"));
+		uint32_t stencil_mask = stencil_mask_uses_ref ? stencil_reference : 255;
+
 		RD::PipelineDepthStencilState::StencilOperationState op;
 		op.compare = stencil_compare_rd_table[stencil_compare];
 		op.reference = stencil_reference;
@@ -322,7 +325,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 			case STENCIL_RW_READ_ONLY:
 				op.pass = RD::STENCIL_OP_KEEP;
 				op.depth_fail = RD::STENCIL_OP_KEEP;
-				op.compare_mask = stencil_reference;
+				op.compare_mask = stencil_mask;
 				op.write_mask = 0;
 				break;
 			case STENCIL_RW_WRITE_ONLY:
@@ -330,25 +333,25 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 				op.depth_fail = RD::STENCIL_OP_KEEP;
 				op.compare = RD::COMPARE_OP_ALWAYS;
 				op.compare_mask = 0;
-				op.write_mask = stencil_reference;
+				op.write_mask = stencil_mask;
 				break;
 			case STENCIL_RW_READ_WRITE:
 				op.pass = RD::STENCIL_OP_REPLACE;
 				op.depth_fail = RD::STENCIL_OP_KEEP;
-				op.compare_mask = stencil_reference;
-				op.write_mask = stencil_reference;
+				op.compare_mask = stencil_mask;
+				op.write_mask = stencil_mask;
 				break;
 			case STENCIL_RW_WRITE_DEPTH_FAIL:
 				op.pass = RD::STENCIL_OP_KEEP;
 				op.depth_fail = RD::STENCIL_OP_REPLACE;
 				op.compare_mask = 0;
-				op.write_mask = stencil_reference;
+				op.write_mask = stencil_mask;
 				break;
 			case STENCIL_RW_WRITE_ALWAYS:
 				op.pass = RD::STENCIL_OP_REPLACE;
 				op.depth_fail = RD::STENCIL_OP_REPLACE;
 				op.compare_mask = 0;
-				op.write_mask = stencil_reference;
+				op.write_mask = stencil_mask;
 				break;
 		}
 

@@ -107,6 +107,26 @@ public:
 			ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE_AND_TO_ONE
 		};
 
+		enum StencilRW {
+			STENCIL_RW_READ_ONLY,
+			STENCIL_RW_WRITE_ONLY,
+			STENCIL_RW_READ_WRITE,
+			STENCIL_RW_WRITE_DEPTH_FAIL,
+			STENCIL_RW_WRITE_ALWAYS,
+			STENCIL_RW_MAX // not an actual operator, just the amount of operators
+		};
+
+		enum StencilCompare {
+			STENCIL_COMPARE_LESS,
+			STENCIL_COMPARE_EQUAL,
+			STENCIL_COMPARE_LESS_OR_EQUAL,
+			STENCIL_COMPARE_GREATER,
+			STENCIL_COMPARE_NOT_EQUAL,
+			STENCIL_COMPARE_GREATER_OR_EQUAL,
+			STENCIL_COMPARE_ALWAYS,
+			STENCIL_COMPARE_MAX // not an actual operator, just the amount of operators
+		};
+
 		bool valid = false;
 		RID version;
 		uint32_t vertex_input_mask = 0;
@@ -147,6 +167,11 @@ public:
 		bool uses_fragment_time = false;
 		bool writes_modelview_or_projection = false;
 		bool uses_world_coordinates = false;
+
+		bool stencil_enabled = false;
+		StencilRW stencil_rw = STENCIL_RW_READ_ONLY;
+		StencilCompare stencil_compare = STENCIL_COMPARE_ALWAYS;
+		uint32_t stencil_reference = 1;
 
 		uint64_t last_pass = 0;
 		uint32_t index = 0;
