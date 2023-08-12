@@ -80,7 +80,9 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 
 	int depth_drawi = DEPTH_DRAW_OPAQUE;
 
-	int stencil_rwi = STENCIL_RW_READ_ONLY;
+	int stencil_readi = 0;
+	int stencil_writei = 0;
+	int stencil_write_depth_faili = 0;
 	int stencil_comparei = STENCIL_COMPARE_ALWAYS;
 	int stencil_referencei = -1;
 
@@ -144,11 +146,9 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 	actions.write_flag_pointers["VERTEX"] = &uses_vertex;
 	actions.write_flag_pointers["POSITION"] = &uses_position;
 
-	actions.stencil_mode_values["rw_read_only"] = Pair<int *, int>(&stencil_rwi, STENCIL_RW_READ_ONLY);
-	actions.stencil_mode_values["rw_write_only"] = Pair<int *, int>(&stencil_rwi, STENCIL_RW_WRITE_ONLY);
-	actions.stencil_mode_values["rw_read_write"] = Pair<int *, int>(&stencil_rwi, STENCIL_RW_READ_WRITE);
-	actions.stencil_mode_values["rw_write_depth_fail"] = Pair<int *, int>(&stencil_rwi, STENCIL_RW_WRITE_DEPTH_FAIL);
-	actions.stencil_mode_values["rw_write_always"] = Pair<int *, int>(&stencil_rwi, STENCIL_RW_WRITE_ALWAYS);
+	actions.stencil_mode_values["read"] = Pair<int *, int>(&stencil_readi, STENCIL_FLAG_READ);
+	actions.stencil_mode_values["write"] = Pair<int *, int>(&stencil_writei, STENCIL_FLAG_WRITE);
+	actions.stencil_mode_values["write_depth_fail"] = Pair<int *, int>(&stencil_write_depth_faili, STENCIL_FLAG_WRITE_DEPTH_FAIL);
 
 	actions.stencil_mode_values["compare_less"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_LESS);
 	actions.stencil_mode_values["compare_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_EQUAL);
@@ -182,7 +182,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 	uses_fragment_time = gen_code.uses_fragment_time;
 
 	stencil_enabled = stencil_referencei != -1;
-	stencil_rw = StencilRW(stencil_rwi);
+	stencil_flags = stencil_readi | stencil_writei | stencil_write_depth_faili;
 	stencil_compare = StencilCompare(stencil_comparei);
 	stencil_reference = stencil_referencei;
 
@@ -318,41 +318,26 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 		uint32_t stencil_mask = stencil_mask_uses_ref ? stencil_reference : 255;
 
 		RD::PipelineDepthStencilState::StencilOperationState op;
-		op.compare = stencil_compare_rd_table[stencil_compare];
-		op.reference = stencil_reference;
 		op.fail = RD::STENCIL_OP_KEEP;
-		switch (stencil_rw) {
-			case STENCIL_RW_READ_ONLY:
-				op.pass = RD::STENCIL_OP_KEEP;
-				op.depth_fail = RD::STENCIL_OP_KEEP;
-				op.compare_mask = stencil_mask;
-				op.write_mask = 0;
-				break;
-			case STENCIL_RW_WRITE_ONLY:
-				op.pass = RD::STENCIL_OP_REPLACE;
-				op.depth_fail = RD::STENCIL_OP_KEEP;
-				op.compare = RD::COMPARE_OP_ALWAYS;
-				op.compare_mask = 0;
-				op.write_mask = stencil_mask;
-				break;
-			case STENCIL_RW_READ_WRITE:
-				op.pass = RD::STENCIL_OP_REPLACE;
-				op.depth_fail = RD::STENCIL_OP_KEEP;
-				op.compare_mask = stencil_mask;
-				op.write_mask = stencil_mask;
-				break;
-			case STENCIL_RW_WRITE_DEPTH_FAIL:
-				op.pass = RD::STENCIL_OP_KEEP;
-				op.depth_fail = RD::STENCIL_OP_REPLACE;
-				op.compare_mask = 0;
-				op.write_mask = stencil_mask;
-				break;
-			case STENCIL_RW_WRITE_ALWAYS:
-				op.pass = RD::STENCIL_OP_REPLACE;
-				op.depth_fail = RD::STENCIL_OP_REPLACE;
-				op.compare_mask = 0;
-				op.write_mask = stencil_mask;
-				break;
+		op.pass = RD::STENCIL_OP_KEEP;
+		op.depth_fail = RD::STENCIL_OP_KEEP;
+		op.compare = stencil_compare_rd_table[stencil_compare];
+		op.compare_mask = 0;
+		op.write_mask = 0;
+		op.reference = stencil_reference;
+
+		if (stencil_flags & STENCIL_FLAG_READ) {
+			op.compare_mask = stencil_mask;
+		}
+
+		if (stencil_flags & STENCIL_FLAG_WRITE) {
+			op.pass = RD::STENCIL_OP_REPLACE;
+			op.write_mask = stencil_mask;
+		}
+
+		if (stencil_flags & STENCIL_FLAG_WRITE_DEPTH_FAIL) {
+			op.depth_fail = RD::STENCIL_OP_REPLACE;
+			op.write_mask = stencil_mask;
 		}
 
 		depth_stencil_state.front_op = op;

@@ -152,13 +152,10 @@ public:
 			ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE_AND_TO_ONE
 		};
 
-		enum StencilRW {
-			STENCIL_RW_READ_ONLY,
-			STENCIL_RW_WRITE_ONLY,
-			STENCIL_RW_READ_WRITE,
-			STENCIL_RW_WRITE_DEPTH_FAIL,
-			STENCIL_RW_WRITE_ALWAYS,
-			STENCIL_RW_MAX // not an actual operator, just the amount of operators
+		enum StencilFlags {
+			STENCIL_FLAG_READ = 1,
+			STENCIL_FLAG_WRITE = 2,
+			STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
 		};
 
 		enum StencilCompare {
@@ -217,9 +214,9 @@ public:
 		Cull cull_mode = CULL_DISABLED;
 
 		bool stencil_enabled = false;
-		StencilRW stencil_rw = STENCIL_RW_READ_ONLY;
-		StencilCompare stencil_compare = STENCIL_COMPARE_ALWAYS;
-		uint32_t stencil_reference = 1;
+		uint32_t stencil_flags = 0;
+		StencilCompare stencil_compare = STENCIL_COMPARE_LESS;
+		uint32_t stencil_reference = 0;
 
 		uint64_t last_pass = 0;
 		uint32_t index = 0;

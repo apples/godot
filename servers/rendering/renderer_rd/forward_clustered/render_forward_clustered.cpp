@@ -1955,6 +1955,7 @@ void RenderForwardClustered::_render_scene(RenderDataRD *p_render_data, const Co
 
 		//opaque without depth prepass
 		if (scene_state.used_opaque_no_depth_prepass) {
+			//TODO: might need to call _setup_environment here to disable screen-space effects
 			rp_uniform_set = _setup_render_pass_uniform_set(RENDER_LIST_OPAQUE_NO_DEPTH_PREPASS, p_render_data, radiance_texture, true);
 			RenderListParameters render_list_params(
 					render_list[RENDER_LIST_OPAQUE_NO_DEPTH_PREPASS].elements.ptr(),
@@ -3541,7 +3542,10 @@ void RenderForwardClustered::_geometry_instance_add_surface_with_material(Geomet
 	}
 
 	if (p_material->shader_data->stencil_enabled) {
-		flags |= GeometryInstanceSurfaceDataCache::FLAG_NO_DEPTH_PREPASS;
+		//stencil materials which read from the stencil buffer must be sorted after all other depth-related operations
+		if (p_material->shader_data->stencil_flags & SceneShaderForwardClustered::ShaderData::STENCIL_FLAG_READ) {
+			flags |= GeometryInstanceSurfaceDataCache::FLAG_NO_DEPTH_PREPASS;
+		}
 	}
 
 	SceneShaderForwardClustered::MaterialData *material_shadow = nullptr;

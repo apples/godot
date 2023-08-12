@@ -831,22 +831,16 @@ void BaseMaterial3D::_update_shader() {
 	if (stencil_mode != STENCIL_MODE_DISABLED) {
 		code += "stencil_mode ";
 
-		switch (stencil_rw) {
-			case STENCIL_RW_READ_ONLY:
-				code += "rw_read_only,";
-				break;
-			case STENCIL_RW_WRITE_ONLY:
-				code += "rw_write_only,";
-				break;
-			case STENCIL_RW_READ_WRITE:
-				code += "rw_read_write,";
-				break;
-			case STENCIL_RW_WRITE_DEPTH_FAIL:
-				code += "rw_write_depth_fail,";
-				break;
-			case STENCIL_RW_WRITE_ALWAYS:
-				code += "rw_write_always,";
-				break;
+		if (stencil_flags & STENCIL_FLAG_READ) {
+			code += "read,";
+		}
+
+		if (stencil_flags & STENCIL_FLAG_WRITE) {
+			code += "write,";
+		}
+
+		if (stencil_flags & STENCIL_FLAG_WRITE_DEPTH_FAIL) {
+			code += "write_depth_fail,";
 		}
 
 		switch (stencil_compare) {
@@ -2605,7 +2599,7 @@ void BaseMaterial3D::_prepare_stencil_effect() {
 
 	switch (stencil_mode) {
 		case STENCIL_MODE_OUTLINE:
-			set_stencil_rw(STENCIL_RW_WRITE_ONLY);
+			set_stencil_flags(STENCIL_FLAG_WRITE);
 			set_stencil_compare(STENCIL_COMPARE_ALWAYS);
 			stencil_next_pass->set_render_priority(-1);
 			stencil_next_pass->set_shading_mode(SHADING_MODE_UNSHADED);
@@ -2615,12 +2609,12 @@ void BaseMaterial3D::_prepare_stencil_effect() {
 			stencil_next_pass->set_grow(stencil_effect_outline_thickness);
 			stencil_next_pass->set_albedo(stencil_effect_color);
 			stencil_next_pass->set_stencil_mode(STENCIL_MODE_CUSTOM);
-			stencil_next_pass->set_stencil_rw(STENCIL_RW_READ_WRITE);
+			stencil_next_pass->set_stencil_flags(STENCIL_FLAG_READ | STENCIL_FLAG_WRITE);
 			stencil_next_pass->set_stencil_compare(STENCIL_COMPARE_NOT_EQUAL);
 			stencil_next_pass->set_stencil_reference(stencil_reference);
 			break;
 		case STENCIL_MODE_XRAY:
-			set_stencil_rw(STENCIL_RW_WRITE_ONLY);
+			set_stencil_flags(STENCIL_FLAG_WRITE);
 			set_stencil_compare(STENCIL_COMPARE_ALWAYS);
 			stencil_next_pass->set_render_priority(-1);
 			stencil_next_pass->set_shading_mode(SHADING_MODE_UNSHADED);
@@ -2630,7 +2624,7 @@ void BaseMaterial3D::_prepare_stencil_effect() {
 			stencil_next_pass->set_grow(0);
 			stencil_next_pass->set_albedo(stencil_effect_color);
 			stencil_next_pass->set_stencil_mode(STENCIL_MODE_CUSTOM);
-			stencil_next_pass->set_stencil_rw(STENCIL_RW_READ_WRITE);
+			stencil_next_pass->set_stencil_flags(STENCIL_FLAG_READ | STENCIL_FLAG_WRITE);
 			stencil_next_pass->set_stencil_compare(STENCIL_COMPARE_NOT_EQUAL);
 			stencil_next_pass->set_stencil_reference(stencil_reference);
 			break;
@@ -2662,17 +2656,17 @@ BaseMaterial3D::StencilMode BaseMaterial3D::get_stencil_mode() const {
 	return stencil_mode;
 }
 
-void BaseMaterial3D::set_stencil_rw(StencilRW p_stencil_rw) {
-	if (stencil_rw == p_stencil_rw) {
+void BaseMaterial3D::set_stencil_flags(int p_stencil_flags) {
+	if (stencil_flags == p_stencil_flags) {
 		return;
 	}
 
-	stencil_rw = p_stencil_rw;
+	stencil_flags = p_stencil_flags;
 	_queue_shader_change();
 }
 
-BaseMaterial3D::StencilRW BaseMaterial3D::get_stencil_rw() const {
-	return stencil_rw;
+int BaseMaterial3D::get_stencil_flags() const {
+	return stencil_flags;
 }
 
 void BaseMaterial3D::set_stencil_compare(BaseMaterial3D::StencilCompare p_op) {
@@ -2966,8 +2960,8 @@ void BaseMaterial3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_stencil_mode", "stencil_mode"), &BaseMaterial3D::set_stencil_mode);
 	ClassDB::bind_method(D_METHOD("get_stencil_mode"), &BaseMaterial3D::get_stencil_mode);
 
-	ClassDB::bind_method(D_METHOD("set_stencil_rw", "stencil_rw"), &BaseMaterial3D::set_stencil_rw);
-	ClassDB::bind_method(D_METHOD("get_stencil_rw"), &BaseMaterial3D::get_stencil_rw);
+	ClassDB::bind_method(D_METHOD("set_stencil_flags", "stencil_flags"), &BaseMaterial3D::set_stencil_flags);
+	ClassDB::bind_method(D_METHOD("get_stencil_flags"), &BaseMaterial3D::get_stencil_flags);
 
 	ClassDB::bind_method(D_METHOD("set_stencil_compare", "stencil_compare"), &BaseMaterial3D::set_stencil_compare);
 	ClassDB::bind_method(D_METHOD("get_stencil_compare"), &BaseMaterial3D::get_stencil_compare);
@@ -3158,7 +3152,7 @@ void BaseMaterial3D::_bind_methods() {
 
 	ADD_GROUP("Stencil", "stencil_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_mode", PROPERTY_HINT_ENUM, "Disabled,Outline,Xray,Custom"), "set_stencil_mode", "get_stencil_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_rw", PROPERTY_HINT_ENUM, "Read Only,Write Only,Read Write,Write Depth Fail,Write Always"), "set_stencil_rw", "get_stencil_rw");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_flags", PROPERTY_HINT_FLAGS, "Read,Write,Write Depth Fail"), "set_stencil_flags", "get_stencil_flags");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_compare", PROPERTY_HINT_ENUM, "Less,Equal,LessOrEqual,Greater,NotEqual,GreaterOrEqual,Always"), "set_stencil_compare", "get_stencil_compare");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_reference"), "set_stencil_reference", "get_stencil_reference");
 
@@ -3305,11 +3299,9 @@ void BaseMaterial3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(STENCIL_MODE_XRAY);
 	BIND_ENUM_CONSTANT(STENCIL_MODE_CUSTOM);
 
-	BIND_ENUM_CONSTANT(STENCIL_RW_READ_ONLY);
-	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_ONLY);
-	BIND_ENUM_CONSTANT(STENCIL_RW_READ_WRITE);
-	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_DEPTH_FAIL);
-	BIND_ENUM_CONSTANT(STENCIL_RW_WRITE_ALWAYS);
+	BIND_ENUM_CONSTANT(STENCIL_FLAG_READ);
+	BIND_ENUM_CONSTANT(STENCIL_FLAG_WRITE);
+	BIND_ENUM_CONSTANT(STENCIL_FLAG_WRITE_DEPTH_FAIL);
 
 	BIND_ENUM_CONSTANT(STENCIL_COMPARE_LESS);
 	BIND_ENUM_CONSTANT(STENCIL_COMPARE_EQUAL);

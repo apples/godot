@@ -326,13 +326,12 @@ public:
 		STENCIL_MODE_MAX // not an actual mode, just the amount of modes
 	};
 
-	enum StencilRW {
-		STENCIL_RW_READ_ONLY,
-		STENCIL_RW_WRITE_ONLY,
-		STENCIL_RW_READ_WRITE,
-		STENCIL_RW_WRITE_DEPTH_FAIL,
-		STENCIL_RW_WRITE_ALWAYS,
-		STENCIL_RW_MAX // not an actual operator, just the amount of operators
+	enum StencilFlags {
+		STENCIL_FLAG_READ = 1,
+		STENCIL_FLAG_WRITE = 2,
+		STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
+
+		STENCIL_FLAG_NUM_BITS = 3 // not an actual mode, just the amount of bits
 	};
 
 	enum StencilCompare {
@@ -368,7 +367,7 @@ private:
 
 		// stencil
 		uint64_t stencil_mode : get_num_bits(STENCIL_MODE_MAX - 1);
-		uint64_t stencil_rw : get_num_bits(STENCIL_RW_MAX - 1);
+		uint64_t stencil_flags : STENCIL_FLAG_NUM_BITS;
 		uint64_t stencil_compare : get_num_bits(STENCIL_COMPARE_MAX - 1);
 		uint64_t stencil_reference : 8;
 
@@ -432,7 +431,7 @@ private:
 		mk.orm = orm;
 
 		mk.stencil_mode = stencil_mode;
-		mk.stencil_rw = stencil_rw;
+		mk.stencil_flags = stencil_flags;
 		mk.stencil_compare = stencil_compare;
 		mk.stencil_reference = stencil_reference;
 
@@ -602,7 +601,7 @@ private:
 	AlphaAntiAliasing alpha_antialiasing_mode = ALPHA_ANTIALIASING_OFF;
 
 	StencilMode stencil_mode = STENCIL_MODE_DISABLED;
-	StencilRW stencil_rw = STENCIL_RW_READ_ONLY;
+	int stencil_flags = STENCIL_FLAG_READ;
 	StencilCompare stencil_compare = STENCIL_COMPARE_EQUAL;
 	int stencil_reference = 0;
 
@@ -828,8 +827,8 @@ public:
 	void set_stencil_mode(StencilMode p_stencil_mode);
 	StencilMode get_stencil_mode() const;
 
-	void set_stencil_rw(StencilRW p_stencil_rw);
-	StencilRW get_stencil_rw() const;
+	void set_stencil_flags(int p_stencil_flags);
+	int get_stencil_flags() const;
 
 	void set_stencil_compare(StencilCompare p_op);
 	StencilCompare get_stencil_compare() const;
@@ -885,7 +884,7 @@ VARIANT_ENUM_CAST(BaseMaterial3D::TextureChannel)
 VARIANT_ENUM_CAST(BaseMaterial3D::EmissionOperator)
 VARIANT_ENUM_CAST(BaseMaterial3D::DistanceFadeMode)
 VARIANT_ENUM_CAST(BaseMaterial3D::StencilMode)
-VARIANT_ENUM_CAST(BaseMaterial3D::StencilRW)
+VARIANT_ENUM_CAST(BaseMaterial3D::StencilFlags)
 VARIANT_ENUM_CAST(BaseMaterial3D::StencilCompare)
 
 class StandardMaterial3D : public BaseMaterial3D {
