@@ -2132,6 +2132,22 @@ void BaseMaterial3D::_validate_property(PropertyInfo &p_property) const {
 		p_property.usage = PROPERTY_USAGE_NONE;
 	}
 
+	if (p_property.name == "stencil_reference" && stencil_mode == STENCIL_MODE_DISABLED) {
+		p_property.usage = PROPERTY_USAGE_NONE;
+	}
+
+	if ((p_property.name == "stencil_flags" || p_property.name == "stencil_compare") && stencil_mode != STENCIL_MODE_CUSTOM) {
+		p_property.usage = PROPERTY_USAGE_NONE;
+	}
+
+	if (p_property.name == "stencil_color" && stencil_mode != STENCIL_MODE_OUTLINE && stencil_mode != STENCIL_MODE_XRAY) {
+		p_property.usage = PROPERTY_USAGE_NONE;
+	}
+
+	if (p_property.name == "stencil_outline_thickness" && stencil_mode != STENCIL_MODE_OUTLINE) {
+		p_property.usage = PROPERTY_USAGE_NONE;
+	}
+
 	if (flags[FLAG_SUBSURFACE_MODE_SKIN] && (p_property.name == "subsurf_scatter_transmittance_color" || p_property.name == "subsurf_scatter_transmittance_texture")) {
 		p_property.usage = PROPERTY_USAGE_NONE;
 	}
@@ -2650,6 +2666,7 @@ void BaseMaterial3D::set_stencil_mode(StencilMode p_stencil_mode) {
 	stencil_mode = p_stencil_mode;
 	_prepare_stencil_effect();
 	_queue_shader_change();
+	notify_property_list_changed();
 }
 
 BaseMaterial3D::StencilMode BaseMaterial3D::get_stencil_mode() const {
@@ -3157,7 +3174,7 @@ void BaseMaterial3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stencil_reference"), "set_stencil_reference", "get_stencil_reference");
 
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "stencil_color", PROPERTY_HINT_NONE), "set_stencil_effect_color", "get_stencil_effect_color");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "stencil_outline_thickness", PROPERTY_HINT_NONE), "set_stencil_effect_outline_thickness", "get_stencil_effect_outline_thickness");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "stencil_outline_thickness", PROPERTY_HINT_RANGE, "0,1,0.001,or_greater,suffix:m"), "set_stencil_effect_outline_thickness", "get_stencil_effect_outline_thickness");
 
 	BIND_ENUM_CONSTANT(TEXTURE_ALBEDO);
 	BIND_ENUM_CONSTANT(TEXTURE_METALLIC);
