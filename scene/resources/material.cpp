@@ -865,6 +865,8 @@ void BaseMaterial3D::_update_shader() {
 			case STENCIL_COMPARE_ALWAYS:
 				code += "compare_always,";
 				break;
+			case STENCIL_COMPARE_MAX:
+				break;
 		}
 
 		code += vformat("%s;\n", stencil_reference);
@@ -2614,6 +2616,8 @@ void BaseMaterial3D::_prepare_stencil_effect() {
 	}
 
 	switch (stencil_mode) {
+		case STENCIL_MODE_DISABLED:
+			break;
 		case STENCIL_MODE_OUTLINE:
 			set_stencil_flags(STENCIL_FLAG_WRITE);
 			set_stencil_compare(STENCIL_COMPARE_ALWAYS);
@@ -2643,6 +2647,10 @@ void BaseMaterial3D::_prepare_stencil_effect() {
 			stencil_next_pass->set_stencil_flags(STENCIL_FLAG_READ | STENCIL_FLAG_WRITE);
 			stencil_next_pass->set_stencil_compare(STENCIL_COMPARE_NOT_EQUAL);
 			stencil_next_pass->set_stencil_reference(stencil_reference);
+			break;
+		case STENCIL_MODE_CUSTOM:
+			break;
+		case STENCIL_MODE_MAX:
 			break;
 	}
 }
