@@ -166,7 +166,7 @@ public:
 			STENCIL_COMPARE_NOT_EQUAL,
 			STENCIL_COMPARE_GREATER_OR_EQUAL,
 			STENCIL_COMPARE_ALWAYS,
-			STENCIL_COMPARE_MAX // not an actual operator, just the amount of operators
+			STENCIL_COMPARE_MAX // Not an actual operator, just the amount of operators.
 		};
 
 		bool valid = false;

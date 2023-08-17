@@ -453,7 +453,7 @@ String ShaderCompiler::_dump_node_code(const SL::Node *p_node, int p_level, Gene
 		case SL::Node::NODE_TYPE_SHADER: {
 			SL::ShaderNode *pnode = (SL::ShaderNode *)p_node;
 
-			// render modes
+			// Render modes.
 
 			for (int i = 0; i < pnode->render_modes.size(); i++) {
 				if (p_default_actions.render_mode_defines.has(pnode->render_modes[i]) && !used_rmode_defines.has(pnode->render_modes[i])) {
@@ -471,7 +471,7 @@ String ShaderCompiler::_dump_node_code(const SL::Node *p_node, int p_level, Gene
 				}
 			}
 
-			// stencil modes
+			// Stencil modes.
 
 			for (int i = 0; i < pnode->stencil_modes.size(); i++) {
 				if (p_actions.stencil_mode_values.has(pnode->stencil_modes[i])) {
@@ -480,7 +480,7 @@ String ShaderCompiler::_dump_node_code(const SL::Node *p_node, int p_level, Gene
 				}
 			}
 
-			// stencil reference value
+			// Stencil reference value.
 
 			if (p_actions.stencil_reference != nullptr && pnode->stencil_reference != -1) {
 				*p_actions.stencil_reference = pnode->stencil_reference;

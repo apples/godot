@@ -323,7 +323,7 @@ public:
 		STENCIL_MODE_OUTLINE,
 		STENCIL_MODE_XRAY,
 		STENCIL_MODE_CUSTOM,
-		STENCIL_MODE_MAX // not an actual mode, just the amount of modes
+		STENCIL_MODE_MAX // Not an actual mode, just the amount of modes.
 	};
 
 	enum StencilFlags {
@@ -331,7 +331,7 @@ public:
 		STENCIL_FLAG_WRITE = 2,
 		STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
 
-		STENCIL_FLAG_NUM_BITS = 3 // not an actual mode, just the amount of bits
+		STENCIL_FLAG_NUM_BITS = 3 // Not an actual mode, just the amount of bits.
 	};
 
 	enum StencilCompare {
@@ -342,7 +342,7 @@ public:
 		STENCIL_COMPARE_NOT_EQUAL,
 		STENCIL_COMPARE_GREATER_OR_EQUAL,
 		STENCIL_COMPARE_ALWAYS,
-		STENCIL_COMPARE_MAX // not an actual operator, just the amount of operators
+		STENCIL_COMPARE_MAX // Not an actual operator, just the amount of operators.
 	};
 
 private:
