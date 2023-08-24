@@ -355,6 +355,7 @@ struct RenderTarget {
 	GLuint backbuffer_fbo = 0;
 	GLuint backbuffer = 0;
 	GLuint backbuffer_depth = 0;
+	bool depth_has_stencil = true;
 
 	GLuint color_internal_format = GL_RGBA8;
 	GLuint color_format = GL_RGBA;
@@ -378,6 +379,7 @@ struct RenderTarget {
 
 	struct RTOverridden {
 		bool is_overridden = false;
+		bool depth_has_stencil = false;
 		RID color;
 		RID depth;
 		RID velocity;
@@ -388,6 +390,7 @@ struct RenderTarget {
 			GLuint depth;
 			Size2i size;
 			Vector<GLuint> allocated_textures;
+			bool depth_has_stencil;
 		};
 		RBMap<uint32_t, FBOCacheEntry> fbo_cache;
 	} overridden;

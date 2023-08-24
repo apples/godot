@@ -372,6 +372,14 @@ private:
 		GLES3::SceneShaderData::DepthFunction current_depth_function = GLES3::SceneShaderData::DEPTH_FUNCTION_LESS_OR_EQUAL;
 		GLES3::SceneShaderData::Cull cull_mode = GLES3::SceneShaderData::CULL_BACK;
 
+		GLenum current_stencil_compare = GL_ALWAYS;
+		GLuint current_stencil_compare_mask = 255;
+		GLuint current_stencil_write_mask = 255;
+		GLint current_stencil_reference = 0;
+		GLenum current_stencil_op_dpfail = GL_KEEP;
+		GLenum current_stencil_op_dppass = GL_KEEP;
+		bool current_stencil_enabled = false;
+
 		bool texscreen_copied = false;
 		bool used_screen_texture = false;
 		bool used_normal_texture = false;

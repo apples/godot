@@ -1942,10 +1942,14 @@ void RasterizerSceneGLES3::render_scene(const Ref<RenderSceneBuffers> &p_render_
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LEQUAL);
 		glDisable(GL_SCISSOR_TEST);
+		glDisable(GL_STENCIL_TEST);
 
 		glColorMask(0, 0, 0, 0);
 		glClearDepth(1.0f);
-		glClear(GL_DEPTH_BUFFER_BIT);
+		glClearStencil(0);
+		glStencilMask(255);
+		scene_state.current_stencil_write_mask = 255;
+		glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		uint64_t spec_constant = SceneShaderGLES3::DISABLE_FOG | SceneShaderGLES3::DISABLE_LIGHT_DIRECTIONAL |
 				SceneShaderGLES3::DISABLE_LIGHTMAP | SceneShaderGLES3::DISABLE_LIGHT_OMNI |
 				SceneShaderGLES3::DISABLE_LIGHT_SPOT;
@@ -1976,11 +1980,25 @@ void RasterizerSceneGLES3::render_scene(const Ref<RenderSceneBuffers> &p_render_
 	glDepthFunc(GL_LEQUAL);
 	glDepthMask(GL_TRUE);
 	scene_state.current_depth_test = GLES3::SceneShaderData::DEPTH_TEST_ENABLED;
+	scene_state.current_depth_function = GLES3::SceneShaderData::DEPTH_FUNCTION_LESS_OR_EQUAL;
 	scene_state.current_depth_draw = GLES3::SceneShaderData::DEPTH_DRAW_ALWAYS;
+
+	glDisable(GL_STENCIL_TEST);
+	glStencilFunc(GL_ALWAYS, 0, 255);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+	glStencilMask(255);
+	scene_state.current_stencil_enabled = false;
+	scene_state.current_stencil_compare = GL_ALWAYS;
+	scene_state.current_stencil_reference = 0;
+	scene_state.current_stencil_compare_mask = 255;
+	scene_state.current_stencil_op_dpfail = GL_KEEP;
+	scene_state.current_stencil_op_dppass = GL_KEEP;
+	scene_state.current_stencil_write_mask = 255;
 
 	if (!fb_cleared) {
 		glClearDepth(1.0f);
-		glClear(GL_DEPTH_BUFFER_BIT);
+		glClearStencil(0);
+		glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	}
 
 	if (!keep_color) {
@@ -2004,6 +2022,9 @@ void RasterizerSceneGLES3::render_scene(const Ref<RenderSceneBuffers> &p_render_
 	RenderListParameters render_list_params(render_list[RENDER_LIST_OPAQUE].elements.ptr(), render_list[RENDER_LIST_OPAQUE].elements.size(), reverse_cull, spec_constant_base_flags, use_wireframe);
 
 	_render_list_template<PASS_MODE_COLOR>(&render_list_params, &render_data, 0, render_list[RENDER_LIST_OPAQUE].elements.size());
+
+	glDisable(GL_STENCIL_TEST);
+	scene_state.current_stencil_enabled = false;
 
 	glDepthMask(GL_FALSE);
 	scene_state.current_depth_draw = GLES3::SceneShaderData::DEPTH_DRAW_DISABLED;
@@ -2052,6 +2073,9 @@ void RasterizerSceneGLES3::render_scene(const Ref<RenderSceneBuffers> &p_render_
 	RenderListParameters render_list_params_alpha(render_list[RENDER_LIST_ALPHA].elements.ptr(), render_list[RENDER_LIST_ALPHA].elements.size(), reverse_cull, spec_constant_base_flags, use_wireframe);
 
 	_render_list_template<PASS_MODE_COLOR_TRANSPARENT>(&render_list_params_alpha, &render_data, 0, render_list[RENDER_LIST_ALPHA].elements.size(), true);
+
+	glDisable(GL_STENCIL_TEST);
+	scene_state.current_stencil_enabled = false;
 
 	if (!flip_y) {
 		// Restore the default winding order.
@@ -2202,6 +2226,66 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 			}
 
 			scene_state.current_depth_draw = shader->depth_draw;
+		}
+
+		if (scene_state.current_stencil_enabled != shader->stencil_enabled) {
+			if (shader->stencil_enabled) {
+				glEnable(GL_STENCIL_TEST);
+				scene_state.current_stencil_enabled = true;
+			} else {
+				glDisable(GL_STENCIL_TEST);
+				scene_state.current_stencil_enabled = false;
+			}
+		}
+
+		if (scene_state.current_stencil_enabled) {
+			GLenum stencil_compare_table[GLES3::SceneShaderData::STENCIL_COMPARE_MAX] = {
+				GL_LESS,
+				GL_EQUAL,
+				GL_LEQUAL,
+				GL_GREATER,
+				GL_NOTEQUAL,
+				GL_GEQUAL,
+				GL_ALWAYS,
+			};
+
+			GLenum stencil_compare = stencil_compare_table[shader->stencil_compare];
+			GLuint stencil_compare_mask = 0;
+			GLuint stencil_write_mask = 0;
+			GLenum stencil_op_dpfail = GL_KEEP;
+			GLenum stencil_op_dppass = GL_KEEP;
+
+			if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_READ) {
+				stencil_compare_mask = shader->stencil_compare_mask;
+			}
+
+			if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_WRITE) {
+				stencil_op_dppass = GL_REPLACE;
+				stencil_write_mask = shader->stencil_write_mask;
+			}
+
+			if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_WRITE_DEPTH_FAIL) {
+				stencil_op_dpfail = GL_REPLACE;
+				stencil_write_mask = shader->stencil_write_mask;
+			}
+
+			if (scene_state.current_stencil_compare != stencil_compare || scene_state.current_stencil_reference != shader->stencil_reference || scene_state.current_stencil_compare_mask != shader->stencil_compare_mask) {
+				glStencilFunc(stencil_compare, shader->stencil_reference, stencil_compare_mask);
+				scene_state.current_stencil_compare = stencil_compare;
+				scene_state.current_stencil_reference = shader->stencil_reference;
+				scene_state.current_stencil_compare_mask = stencil_compare_mask;
+			}
+
+			if (scene_state.current_stencil_write_mask != stencil_write_mask) {
+				glStencilMask(stencil_write_mask);
+				scene_state.current_stencil_write_mask = stencil_write_mask;
+			}
+
+			if (scene_state.current_stencil_op_dpfail != stencil_op_dpfail || scene_state.current_stencil_op_dppass != stencil_op_dppass) {
+				glStencilOp(GL_KEEP, stencil_op_dpfail, stencil_op_dppass);
+				scene_state.current_stencil_op_dpfail = stencil_op_dpfail;
+				scene_state.current_stencil_op_dppass = stencil_op_dppass;
+			}
 		}
 
 		if constexpr (p_pass_mode == PASS_MODE_COLOR_TRANSPARENT || p_pass_mode == PASS_MODE_COLOR_ADDITIVE) {
