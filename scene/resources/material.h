@@ -603,10 +603,10 @@ private:
 	StencilMode stencil_mode = STENCIL_MODE_DISABLED;
 	int stencil_flags = STENCIL_FLAG_READ;
 	StencilCompare stencil_compare = STENCIL_COMPARE_EQUAL;
-	int stencil_reference = 0;
+	int stencil_reference = 1;
 
-	Color stencil_effect_color = Color(0, 0, 0, 0);
-	float stencil_effect_outline_thickness = 0.0f;
+	Color stencil_effect_color = Color(0, 0, 0, 1);
+	float stencil_effect_outline_thickness = 0.01f;
 
 	bool features[FEATURE_MAX] = {};
 
