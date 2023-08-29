@@ -314,8 +314,7 @@ void SceneShaderForwardClustered::ShaderData::set_code(const String &p_code) {
 			RD::COMPARE_OP_ALWAYS,
 		};
 
-		bool stencil_mask_uses_ref = bool(GLOBAL_GET("rendering/driver/stencil/mask_uses_ref"));
-		uint32_t stencil_mask = stencil_mask_uses_ref ? stencil_reference : 255;
+		uint32_t stencil_mask = 255;
 
 		RD::PipelineDepthStencilState::StencilOperationState op;
 		op.fail = RD::STENCIL_OP_KEEP;
