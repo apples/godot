@@ -8052,9 +8052,9 @@ Error ShaderLanguage::_parse_shader(const HashMap<StringName, FunctionInfo> &p_f
 					tk = _get_token();
 
 					if (tk.type == TK_COMMA) {
-						//all good, do nothing
+						// All good, do nothing.
 					} else if (tk.type == TK_SEMICOLON) {
-						break; //done
+						break; // Done.
 					} else {
 						_set_error(vformat(RTR("Unexpected token: '%s'."), get_token_text(tk)));
 						return ERR_PARSE_ERROR;
@@ -9805,7 +9805,7 @@ Error ShaderLanguage::_find_last_flow_op_in_block(BlockNode *p_block, FlowOperat
 	return FAILED;
 }
 
-Error ShaderLanguage::_parse_shader_mode(bool is_stencil, const Vector<ModeInfo> &p_modes, HashMap<String, String> &defined_modes) {
+Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInfo> &p_modes, HashMap<String, String> &r_defined_modes) {
 	StringName mode;
 	_get_completable_identifier(nullptr, is_stencil ? COMPLETION_STENCIL_MODE : COMPLETION_RENDER_MODE, mode);
 

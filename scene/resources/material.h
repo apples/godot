@@ -605,7 +605,7 @@ private:
 	StencilCompare stencil_compare = STENCIL_COMPARE_EQUAL;
 	int stencil_reference = 1;
 
-	Color stencil_effect_color = Color(0, 0, 0, 1);
+	Color stencil_effect_color;
 	float stencil_effect_outline_thickness = 0.01f;
 
 	bool features[FEATURE_MAX] = {};

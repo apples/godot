@@ -1122,7 +1122,7 @@ private:
 	Error _find_last_flow_op_in_block(BlockNode *p_block, FlowOperation p_op);
 	Error _find_last_flow_op_in_op(ControlFlowNode *p_flow, FlowOperation p_op);
 
-	Error _parse_shader_mode(bool is_stencil, const Vector<ModeInfo> &p_modes, HashMap<String, String> &defined_modes);
+	Error _parse_shader_mode(bool p_is_stencil, const Vector<ModeInfo> &p_modes, HashMap<String, String> &r_defined_modes);
 
 public:
 #ifdef DEBUG_ENABLED

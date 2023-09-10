@@ -482,7 +482,7 @@ String ShaderCompiler::_dump_node_code(const SL::Node *p_node, int p_level, Gene
 
 			// Stencil reference value.
 
-			if (p_actions.stencil_reference != nullptr && pnode->stencil_reference != -1) {
+			if (p_actions.stencil_reference && pnode->stencil_reference != -1) {
 				*p_actions.stencil_reference = pnode->stencil_reference;
 			}
 
