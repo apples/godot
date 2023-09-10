@@ -9807,10 +9807,10 @@ Error ShaderLanguage::_find_last_flow_op_in_block(BlockNode *p_block, FlowOperat
 
 Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInfo> &p_modes, HashMap<String, String> &r_defined_modes) {
 	StringName mode;
-	_get_completable_identifier(nullptr, is_stencil ? COMPLETION_STENCIL_MODE : COMPLETION_RENDER_MODE, mode);
+	_get_completable_identifier(nullptr, p_is_stencil ? COMPLETION_STENCIL_MODE : COMPLETION_RENDER_MODE, mode);
 
 	if (mode == StringName()) {
-		if (is_stencil) {
+		if (p_is_stencil) {
 			_set_error(RTR("Expected an identifier for stencil mode."));
 		} else {
 			_set_error(RTR("Expected an identifier for render mode."));
@@ -9820,10 +9820,10 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 
 	const String smode = String(mode);
 
-	Vector<StringName> &current_modes = is_stencil ? shader->stencil_modes : shader->render_modes;
+	Vector<StringName> &current_modes = p_is_stencil ? shader->stencil_modes : shader->render_modes;
 
 	if (current_modes.has(mode)) {
-		if (is_stencil) {
+		if (p_is_stencil) {
 			_set_error(vformat(RTR("Duplicated stencil mode: '%s'."), smode));
 		} else {
 			_set_error(vformat(RTR("Duplicated render mode: '%s'."), smode));
@@ -9835,7 +9835,7 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 
 	if (is_shader_inc) {
 		for (int i = 0; i < RenderingServer::SHADER_MAX; i++) {
-			const Vector<ModeInfo> modes = is_stencil ? ShaderTypes::get_singleton()->get_stencil_modes(RenderingServer::ShaderMode(i)) : ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(i));
+			const Vector<ModeInfo> modes = p_is_stencil ? ShaderTypes::get_singleton()->get_stencil_modes(RenderingServer::ShaderMode(i)) : ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(i));
 
 			for (int j = 0; j < modes.size(); j++) {
 				const ModeInfo &info = modes[j];
@@ -9846,15 +9846,15 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 						if (info.options.has(smode.substr(name.length() + 1))) {
 							found = true;
 
-							if (defined_modes.has(name)) {
-								if (is_stencil) {
-									_set_error(vformat(RTR("Redefinition of stencil mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, defined_modes[name]));
+							if (r_defined_modes.has(name)) {
+								if (p_is_stencil) {
+									_set_error(vformat(RTR("Redefinition of stencil mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, r_defined_modes[name]));
 								} else {
-									_set_error(vformat(RTR("Redefinition of render mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, defined_modes[name]));
+									_set_error(vformat(RTR("Redefinition of render mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, r_defined_modes[name]));
 								}
 								return ERR_PARSE_ERROR;
 							}
-							defined_modes.insert(name, smode);
+							r_defined_modes.insert(name, smode);
 							break;
 						}
 					} else {
@@ -9874,15 +9874,15 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 					if (info.options.has(smode.substr(name.length() + 1))) {
 						found = true;
 
-						if (defined_modes.has(name)) {
-							if (is_stencil) {
-								_set_error(vformat(RTR("Redefinition of stencil mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, defined_modes[name]));
+						if (r_defined_modes.has(name)) {
+							if (p_is_stencil) {
+								_set_error(vformat(RTR("Redefinition of stencil mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, r_defined_modes[name]));
 							} else {
-								_set_error(vformat(RTR("Redefinition of render mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, defined_modes[name]));
+								_set_error(vformat(RTR("Redefinition of render mode: '%s'. The '%s' mode has already been set to '%s'."), smode, name, r_defined_modes[name]));
 							}
 							return ERR_PARSE_ERROR;
 						}
-						defined_modes.insert(name, smode);
+						r_defined_modes.insert(name, smode);
 						break;
 					}
 				} else {
@@ -9894,7 +9894,7 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 	}
 
 	if (!found) {
-		if (is_stencil) {
+		if (p_is_stencil) {
 			_set_error(vformat(RTR("Invalid stencil mode: '%s'."), smode));
 		} else {
 			_set_error(vformat(RTR("Invalid render mode: '%s'."), smode));
@@ -9902,7 +9902,7 @@ Error ShaderLanguage::_parse_shader_mode(bool p_is_stencil, const Vector<ModeInf
 		return ERR_PARSE_ERROR;
 	}
 
-	if (is_stencil) {
+	if (p_is_stencil) {
 		shader->stencil_modes.push_back(mode);
 	} else {
 		shader->render_modes.push_back(mode);
