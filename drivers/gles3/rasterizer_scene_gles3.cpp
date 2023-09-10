@@ -2174,10 +2174,10 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 			GLenum depth_function_table[GLES3::SceneShaderData::DEPTH_FUNCTION_MAX] = {
 				GL_LEQUAL,
 				GL_LESS,
-				GL_GEQUAL,
-				GL_GREATER,
 				GL_EQUAL,
+				GL_GREATER,
 				GL_NOTEQUAL,
+				GL_GEQUAL,
 				GL_ALWAYS,
 				GL_NEVER,
 			};

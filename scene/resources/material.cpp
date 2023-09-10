@@ -712,22 +712,22 @@ void BaseMaterial3D::_update_shader() {
 
 	switch (depth_function) {
 		case DEPTH_FUNCTION_LESS_OR_EQUAL:
-			code += ",depth_function_lequal";
+			code += ",depth_function_less_or_equal";
 			break;
 		case DEPTH_FUNCTION_LESS:
 			code += ",depth_function_less";
 			break;
-		case DEPTH_FUNCTION_GREATER_OR_EQUAL:
-			code += ",depth_function_gequal";
+		case DEPTH_FUNCTION_EQUAL:
+			code += ",depth_function_equal";
 			break;
 		case DEPTH_FUNCTION_GREATER:
 			code += ",depth_function_greater";
 			break;
-		case DEPTH_FUNCTION_EQUAL:
-			code += ",depth_function_equal";
-			break;
 		case DEPTH_FUNCTION_NOT_EQUAL:
-			code += ",depth_function_notequal";
+			code += ",depth_function_not_equal";
+			break;
+		case DEPTH_FUNCTION_GREATER_OR_EQUAL:
+			code += ",depth_function_greater_or_equal";
 			break;
 		case DEPTH_FUNCTION_ALWAYS:
 			code += ",depth_function_always";
@@ -3256,10 +3256,10 @@ void BaseMaterial3D::_bind_methods() {
 
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_LESS_OR_EQUAL);
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_LESS);
-	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_GREATER_OR_EQUAL);
-	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_GREATER);
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_EQUAL);
+	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_GREATER);
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_NOT_EQUAL);
+	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_GREATER_OR_EQUAL);
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_ALWAYS);
 	BIND_ENUM_CONSTANT(DEPTH_FUNCTION_NEVER);
 

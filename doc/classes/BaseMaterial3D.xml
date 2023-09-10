@@ -654,17 +654,17 @@
 		<constant name="DEPTH_FUNCTION_LESS" value="1" enum="DepthFunction">
 			Depth check succeeds if less than existing depth.
 		</constant>
-		<constant name="DEPTH_FUNCTION_GREATER_OR_EQUAL" value="2" enum="DepthFunction">
-			Depth check succeeds if greater than or equal to existing depth.
+		<constant name="DEPTH_FUNCTION_EQUAL" value="2" enum="DepthFunction">
+			Depth check succeeds if equal to existing depth.
 		</constant>
 		<constant name="DEPTH_FUNCTION_GREATER" value="3" enum="DepthFunction">
 			Depth check succeeds if greater than existing depth.
 		</constant>
-		<constant name="DEPTH_FUNCTION_EQUAL" value="4" enum="DepthFunction">
-			Depth check succeeds if equal to existing depth.
-		</constant>
-		<constant name="DEPTH_FUNCTION_NOT_EQUAL" value="5" enum="DepthFunction">
+		<constant name="DEPTH_FUNCTION_NOT_EQUAL" value="4" enum="DepthFunction">
 			Depth check succeeds if not equal to existing depth.
+		</constant>
+		<constant name="DEPTH_FUNCTION_GREATER_OR_EQUAL" value="5" enum="DepthFunction">
+			Depth check succeeds if greater than or equal to existing depth.
 		</constant>
 		<constant name="DEPTH_FUNCTION_ALWAYS" value="6" enum="DepthFunction">
 			Depth check always succeeds.
