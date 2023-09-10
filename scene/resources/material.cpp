@@ -2725,7 +2725,7 @@ int BaseMaterial3D::get_stencil_reference() const {
 	return stencil_reference;
 }
 
-void BaseMaterial3D::set_stencil_effect_color(Color p_color) {
+void BaseMaterial3D::set_stencil_effect_color(const Color &p_color) {
 	if (stencil_effect_color == p_color) {
 		return;
 	}

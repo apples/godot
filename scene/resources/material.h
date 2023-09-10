@@ -836,7 +836,7 @@ public:
 	void set_stencil_reference(int p_reference);
 	int get_stencil_reference() const;
 
-	void set_stencil_effect_color(Color p_color);
+	void set_stencil_effect_color(const Color &p_color);
 	Color get_stencil_effect_color() const;
 
 	void set_stencil_effect_outline_thickness(float p_outline_thickness);
