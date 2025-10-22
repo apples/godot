@@ -3181,9 +3181,19 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 					GL_ALWAYS,
 				};
 
+				static const GLenum stencil_write_op_table[GLES3::SceneShaderData::STENCIL_WRITE_OP_MAX] = {
+					GL_REPLACE,
+					GL_ZERO,
+					GL_INCR_WRAP,
+					GL_DECR_WRAP,
+					GL_INCR,
+					GL_DECR,
+				};
+
 				GLenum stencil_compare = stencil_compare_table[shader->stencil_compare];
 				GLuint stencil_compare_mask = 0;
 				GLuint stencil_write_mask = 0;
+				GLenum stencil_op_fail = GL_KEEP;
 				GLenum stencil_op_dpfail = GL_KEEP;
 				GLenum stencil_op_dppass = GL_KEEP;
 
@@ -3192,19 +3202,24 @@ void RasterizerSceneGLES3::_render_list_template(RenderListParameters *p_params,
 				}
 
 				if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_WRITE) {
-					stencil_op_dppass = GL_REPLACE;
+					stencil_op_dppass = stencil_write_op_table[shader->stencil_write_op];
 					stencil_write_mask = 255;
 				}
 
 				if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_WRITE_DEPTH_FAIL) {
-					stencil_op_dpfail = GL_REPLACE;
+					stencil_op_dpfail = stencil_write_op_table[shader->stencil_write_op];
+					stencil_write_mask = 255;
+				}
+
+				if (shader->stencil_flags & GLES3::SceneShaderData::STENCIL_FLAG_WRITE_STENCIL_FAIL) {
+					stencil_op_fail = stencil_write_op_table[shader->stencil_write_op];
 					stencil_write_mask = 255;
 				}
 
 				scene_state.enable_gl_stencil_test(true);
 				scene_state.set_gl_stencil_func(stencil_compare, shader->stencil_reference, stencil_compare_mask);
 				scene_state.set_gl_stencil_write_mask(stencil_write_mask);
-				scene_state.set_gl_stencil_op(GL_KEEP, stencil_op_dpfail, stencil_op_dppass);
+				scene_state.set_gl_stencil_op(stencil_op_fail, stencil_op_dpfail, stencil_op_dppass);
 			} else {
 				scene_state.enable_gl_stencil_test(false);
 			}

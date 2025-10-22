@@ -256,7 +256,9 @@ ShaderTypes::ShaderTypes() {
 		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("read") });
 		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("write") });
 		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("write_depth_fail") });
+		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("write_stencil_fail") });
 		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("compare"), { "always", "less", "equal", "less_or_equal", "greater", "not_equal", "greater_or_equal" } });
+		shader_modes[RSE::SHADER_SPATIAL].stencil_modes.push_back({ PNAME("write_op"), { "replace", "zero", "increment_and_wrap", "decrement_and_wrap", "increment_and_clamp", "decrement_and_clamp" } });
 	}
 
 	/************ CANVAS ITEM **************************/

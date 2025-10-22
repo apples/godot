@@ -396,6 +396,9 @@
 		<member name="stencil_reference" type="int" setter="set_stencil_reference" getter="get_stencil_reference" default="1" experimental="May be affected by future rendering pipeline changes.">
 			The stencil reference value (0-255). Typically a power of 2.
 		</member>
+		<member name="stencil_write_op" type="int" setter="set_stencil_write_op" getter="get_stencil_write_op" enum="BaseMaterial3D.StencilWriteOp" default="0">
+			The operation used when modifying the existing stencil buffer values. See [enum StencilWriteOp].
+		</member>
 		<member name="subsurf_scatter_enabled" type="bool" setter="set_feature" getter="get_feature" default="false">
 			If [code]true[/code], subsurface scattering is enabled. Emulates light that penetrates an object's surface, is scattered, and then emerges. Subsurface scattering quality is controlled by [member ProjectSettings.rendering/environment/subsurface_scattering/subsurface_scattering_quality].
 			[b]Note:[/b] Subsurface scattering is not supported on viewports that have a transparent background (where [member Viewport.transparent_bg] is [code]true[/code]).
@@ -870,6 +873,9 @@
 		<constant name="STENCIL_FLAG_WRITE_DEPTH_FAIL" value="4" enum="StencilFlags">
 			The material will write the reference value to the stencil buffer where it fails the depth test.
 		</constant>
+		<constant name="STENCIL_FLAG_WRITE_STENCIL_FAIL" value="8" enum="StencilFlags">
+			The material will write the reference value to the stencil buffer where it fails the stencil test.
+		</constant>
 		<constant name="STENCIL_COMPARE_ALWAYS" value="0" enum="StencilCompare">
 			Always passes the stencil test.
 		</constant>
@@ -890,6 +896,24 @@
 		</constant>
 		<constant name="STENCIL_COMPARE_GREATER_OR_EQUAL" value="6" enum="StencilCompare">
 			Passes the stencil test when the reference value is greater than or equal to the existing stencil value.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_REPLACE" value="0" enum="StencilWriteOp">
+			Replaces the existing stencil value with the reference value.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_ZERO" value="1" enum="StencilWriteOp">
+			Replaces the existing stencil value with 0.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_INCREMENT_AND_WRAP" value="2" enum="StencilWriteOp">
+			Increments the stencil value. If the stencil value is 255, it wraps to 0.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_DECREMENT_AND_WRAP" value="3" enum="StencilWriteOp">
+			Decrements the stencil value. If the stencil value is 0, it wraps to 255.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_INCREMENT_AND_CLAMP" value="4" enum="StencilWriteOp">
+			Increments the stencil value. If the stencil value is 255, does nothing.
+		</constant>
+		<constant name="STENCIL_WRITE_OP_DECREMENT_AND_CLAMP" value="5" enum="StencilWriteOp">
+			Decrements the stencil value. If the stencil value is 0, does nothing.
 		</constant>
 	</constants>
 </class>

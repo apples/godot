@@ -270,13 +270,24 @@ struct SceneShaderData : public ShaderData {
 		STENCIL_COMPARE_NOT_EQUAL,
 		STENCIL_COMPARE_GREATER_OR_EQUAL,
 		STENCIL_COMPARE_ALWAYS,
-		STENCIL_COMPARE_MAX // not an actual operator, just the amount of operators
+		STENCIL_COMPARE_MAX // Not an actual operator, just the amount of operators.
 	};
 
 	enum StencilFlags {
 		STENCIL_FLAG_READ = 1,
 		STENCIL_FLAG_WRITE = 2,
 		STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
+		STENCIL_FLAG_WRITE_STENCIL_FAIL = 8,
+	};
+
+	enum StencilWriteOp {
+		STENCIL_WRITE_OP_REPLACE = 0,
+		STENCIL_WRITE_OP_ZERO = 1,
+		STENCIL_WRITE_OP_INCREMENT_AND_WRAP = 2,
+		STENCIL_WRITE_OP_DECREMENT_AND_WRAP = 3,
+		STENCIL_WRITE_OP_INCREMENT_AND_CLAMP = 4,
+		STENCIL_WRITE_OP_DECREMENT_AND_CLAMP = 5,
+		STENCIL_WRITE_OP_MAX // Not an actual operator, just the amount of operators.
 	};
 
 	enum AlphaAntiAliasing {
@@ -305,6 +316,7 @@ struct SceneShaderData : public ShaderData {
 	RSE::CullMode cull_mode;
 
 	StencilCompare stencil_compare;
+	StencilWriteOp stencil_write_op;
 	uint32_t stencil_flags;
 	int32_t stencil_reference;
 	bool stencil_enabled;

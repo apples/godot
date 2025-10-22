@@ -88,7 +88,9 @@ void SceneShaderForwardMobile::ShaderData::set_code(const String &p_code) {
 	int stencil_readi = 0;
 	int stencil_writei = 0;
 	int stencil_write_depth_faili = 0;
+	int stencil_write_stencil_faili = 0;
 	int stencil_comparei = STENCIL_COMPARE_ALWAYS;
+	int stencil_write_opi = STENCIL_WRITE_OP_REPLACE;
 	int stencil_referencei = -1;
 
 	ShaderCompiler::IdentifierActions actions;
@@ -153,6 +155,7 @@ void SceneShaderForwardMobile::ShaderData::set_code(const String &p_code) {
 	actions.stencil_mode_values["read"] = Pair<int *, int>(&stencil_readi, STENCIL_FLAG_READ);
 	actions.stencil_mode_values["write"] = Pair<int *, int>(&stencil_writei, STENCIL_FLAG_WRITE);
 	actions.stencil_mode_values["write_depth_fail"] = Pair<int *, int>(&stencil_write_depth_faili, STENCIL_FLAG_WRITE_DEPTH_FAIL);
+	actions.stencil_mode_values["write_stencil_fail"] = Pair<int *, int>(&stencil_write_stencil_faili, STENCIL_FLAG_WRITE_STENCIL_FAIL);
 
 	actions.stencil_mode_values["compare_less"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_LESS);
 	actions.stencil_mode_values["compare_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_EQUAL);
@@ -161,6 +164,13 @@ void SceneShaderForwardMobile::ShaderData::set_code(const String &p_code) {
 	actions.stencil_mode_values["compare_not_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_NOT_EQUAL);
 	actions.stencil_mode_values["compare_greater_or_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_GREATER_OR_EQUAL);
 	actions.stencil_mode_values["compare_always"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_ALWAYS);
+
+	actions.stencil_mode_values["write_op_replace"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_REPLACE);
+	actions.stencil_mode_values["write_op_zero"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_ZERO);
+	actions.stencil_mode_values["write_op_increment_and_wrap"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_INCREMENT_AND_WRAP);
+	actions.stencil_mode_values["write_op_decrement_and_wrap"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_DECREMENT_AND_WRAP);
+	actions.stencil_mode_values["write_op_increment_and_clamp"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_INCREMENT_AND_CLAMP);
+	actions.stencil_mode_values["write_op_decrement_and_clamp"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_DECREMENT_AND_CLAMP);
 
 	actions.stencil_reference = &stencil_referencei;
 
@@ -201,8 +211,9 @@ void SceneShaderForwardMobile::ShaderData::set_code(const String &p_code) {
 	uses_tangent |= uses_bent_normal_map;
 
 	stencil_enabled = stencil_referencei != -1;
-	stencil_flags = stencil_readi | stencil_writei | stencil_write_depth_faili;
+	stencil_flags = stencil_readi | stencil_writei | stencil_write_depth_faili | stencil_write_stencil_faili;
 	stencil_compare = StencilCompare(stencil_comparei);
+	stencil_write_op = StencilWriteOp(stencil_write_opi);
 	stencil_reference = stencil_referencei;
 
 #ifdef DEBUG_ENABLED
@@ -338,6 +349,15 @@ void SceneShaderForwardMobile::ShaderData::_create_pipeline(PipelineKey p_pipeli
 			RD::COMPARE_OP_ALWAYS,
 		};
 
+		static const RD::StencilOperation stencil_op_rd_table[STENCIL_WRITE_OP_MAX] = {
+			RD::STENCIL_OP_REPLACE,
+			RD::STENCIL_OP_ZERO,
+			RD::STENCIL_OP_INCREMENT_AND_WRAP,
+			RD::STENCIL_OP_DECREMENT_AND_WRAP,
+			RD::STENCIL_OP_INCREMENT_AND_CLAMP,
+			RD::STENCIL_OP_DECREMENT_AND_CLAMP,
+		};
+
 		uint32_t stencil_mask = 255;
 
 		RD::PipelineDepthStencilState::StencilOperationState op;
@@ -354,12 +374,17 @@ void SceneShaderForwardMobile::ShaderData::_create_pipeline(PipelineKey p_pipeli
 		}
 
 		if (stencil_flags & STENCIL_FLAG_WRITE) {
-			op.pass = RD::STENCIL_OP_REPLACE;
+			op.pass = stencil_op_rd_table[stencil_write_op];
 			op.write_mask = stencil_mask;
 		}
 
 		if (stencil_flags & STENCIL_FLAG_WRITE_DEPTH_FAIL) {
-			op.depth_fail = RD::STENCIL_OP_REPLACE;
+			op.depth_fail = stencil_op_rd_table[stencil_write_op];
+			op.write_mask = stencil_mask;
+		}
+
+		if (stencil_flags & STENCIL_FLAG_WRITE_STENCIL_FAIL) {
+			op.fail = stencil_op_rd_table[stencil_write_op];
 			op.write_mask = stencil_mask;
 		}
 

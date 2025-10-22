@@ -512,6 +512,10 @@ private:
 			current_stencil_compare = GL_ALWAYS;
 			current_stencil_reference = 0;
 			current_stencil_compare_mask = 255;
+			glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+			current_stencil_op_fail = GL_KEEP;
+			current_stencil_op_dpfail = GL_KEEP;
+			current_stencil_op_dppass = GL_KEEP;
 		}
 
 		void set_gl_cull_mode(RSE::CullMode p_mode) {

@@ -33,6 +33,7 @@
 #include "core/io/resource.h"
 #include "core/templates/self_list.h"
 #include "scene/resources/shader.h"
+#include "scene/resources/texture.h"
 #include "servers/rendering/rendering_server_enums.h"
 
 class Material : public Resource {
@@ -339,8 +340,9 @@ public:
 		STENCIL_FLAG_READ = 1,
 		STENCIL_FLAG_WRITE = 2,
 		STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
+		STENCIL_FLAG_WRITE_STENCIL_FAIL = 8,
 
-		STENCIL_FLAG_NUM_BITS = 3 // Not an actual mode, just the amount of bits.
+		STENCIL_FLAG_NUM_BITS = 4 // Not an actual mode, just the amount of bits.
 	};
 
 	enum StencilCompare {
@@ -352,6 +354,16 @@ public:
 		STENCIL_COMPARE_NOT_EQUAL,
 		STENCIL_COMPARE_GREATER_OR_EQUAL,
 		STENCIL_COMPARE_MAX // Not an actual operator, just the amount of operators.
+	};
+
+	enum StencilWriteOp {
+		STENCIL_WRITE_OP_REPLACE = 0,
+		STENCIL_WRITE_OP_ZERO = 1,
+		STENCIL_WRITE_OP_INCREMENT_AND_WRAP = 2,
+		STENCIL_WRITE_OP_DECREMENT_AND_WRAP = 3,
+		STENCIL_WRITE_OP_INCREMENT_AND_CLAMP = 4,
+		STENCIL_WRITE_OP_DECREMENT_AND_CLAMP = 5,
+		STENCIL_WRITE_OP_MAX // Not an actual operator, just the amount of operators.
 	};
 
 private:
@@ -378,6 +390,7 @@ private:
 		uint64_t stencil_mode : Math::get_num_bits(STENCIL_MODE_MAX - 1);
 		uint64_t stencil_flags : STENCIL_FLAG_NUM_BITS;
 		uint64_t stencil_compare : Math::get_num_bits(STENCIL_COMPARE_MAX - 1);
+		uint64_t stencil_write_op : Math::get_num_bits(STENCIL_WRITE_OP_MAX - 1);
 		uint64_t stencil_reference : 8;
 
 		// booleans
@@ -444,6 +457,7 @@ private:
 		mk.stencil_mode = stencil_mode;
 		mk.stencil_flags = stencil_flags;
 		mk.stencil_compare = stencil_compare;
+		mk.stencil_write_op = stencil_write_op;
 		mk.stencil_reference = stencil_reference;
 
 		for (int i = 0; i < FEATURE_MAX; i++) {
@@ -621,6 +635,7 @@ private:
 	StencilMode stencil_mode = STENCIL_MODE_DISABLED;
 	int stencil_flags = 0;
 	StencilCompare stencil_compare = STENCIL_COMPARE_ALWAYS;
+	StencilWriteOp stencil_write_op = STENCIL_WRITE_OP_REPLACE;
 	int stencil_reference = 1;
 
 	Color stencil_effect_color;
@@ -849,6 +864,9 @@ public:
 	void set_stencil_compare(StencilCompare p_op);
 	StencilCompare get_stencil_compare() const;
 
+	void set_stencil_write_op(StencilWriteOp p_op);
+	StencilWriteOp get_stencil_write_op() const;
+
 	void set_stencil_reference(int p_reference);
 	int get_stencil_reference() const;
 
@@ -908,6 +926,7 @@ VARIANT_ENUM_CAST(BaseMaterial3D::DistanceFadeMode)
 VARIANT_ENUM_CAST(BaseMaterial3D::StencilMode)
 VARIANT_ENUM_CAST(BaseMaterial3D::StencilFlags)
 VARIANT_ENUM_CAST(BaseMaterial3D::StencilCompare)
+VARIANT_ENUM_CAST(BaseMaterial3D::StencilWriteOp)
 
 class StandardMaterial3D : public BaseMaterial3D {
 	GDCLASS(StandardMaterial3D, BaseMaterial3D)

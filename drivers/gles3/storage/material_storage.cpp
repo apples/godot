@@ -3005,7 +3005,9 @@ void SceneShaderData::set_code(const String &p_code) {
 	int stencil_readi = 0;
 	int stencil_writei = 0;
 	int stencil_write_depth_faili = 0;
+	int stencil_write_stencil_faili = 0;
 	int stencil_comparei = STENCIL_COMPARE_ALWAYS;
+	int stencil_write_opi = STENCIL_WRITE_OP_REPLACE;
 	int stencil_referencei = -1;
 
 	ShaderCompiler::IdentifierActions actions;
@@ -3080,6 +3082,7 @@ void SceneShaderData::set_code(const String &p_code) {
 	actions.stencil_mode_values["read"] = Pair<int *, int>(&stencil_readi, STENCIL_FLAG_READ);
 	actions.stencil_mode_values["write"] = Pair<int *, int>(&stencil_writei, STENCIL_FLAG_WRITE);
 	actions.stencil_mode_values["write_depth_fail"] = Pair<int *, int>(&stencil_write_depth_faili, STENCIL_FLAG_WRITE_DEPTH_FAIL);
+	actions.stencil_mode_values["write_stencil_fail"] = Pair<int *, int>(&stencil_write_stencil_faili, STENCIL_FLAG_WRITE_STENCIL_FAIL);
 
 	actions.stencil_mode_values["compare_less"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_LESS);
 	actions.stencil_mode_values["compare_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_EQUAL);
@@ -3088,6 +3091,13 @@ void SceneShaderData::set_code(const String &p_code) {
 	actions.stencil_mode_values["compare_not_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_NOT_EQUAL);
 	actions.stencil_mode_values["compare_greater_or_equal"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_GREATER_OR_EQUAL);
 	actions.stencil_mode_values["compare_always"] = Pair<int *, int>(&stencil_comparei, STENCIL_COMPARE_ALWAYS);
+
+	actions.stencil_mode_values["write_op_replace"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_REPLACE);
+	actions.stencil_mode_values["write_op_zero"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_ZERO);
+	actions.stencil_mode_values["write_op_increment_and_wrap"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_INCREMENT_AND_WRAP);
+	actions.stencil_mode_values["write_op_decrement_and_wrap"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_DECREMENT_AND_WRAP);
+	actions.stencil_mode_values["write_op_increment_and_clamp"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_INCREMENT_AND_CLAMP);
+	actions.stencil_mode_values["write_op_decrement_and_clamp"] = Pair<int *, int>(&stencil_write_opi, STENCIL_WRITE_OP_DECREMENT_AND_CLAMP);
 
 	actions.stencil_reference = &stencil_referencei;
 
@@ -3132,8 +3142,9 @@ void SceneShaderData::set_code(const String &p_code) {
 	uses_fragment_time = gen_code.uses_fragment_time;
 
 	stencil_enabled = stencil_referencei != -1;
-	stencil_flags = stencil_readi | stencil_writei | stencil_write_depth_faili;
+	stencil_flags = stencil_readi | stencil_writei | stencil_write_depth_faili | stencil_write_stencil_faili;
 	stencil_compare = StencilCompare(stencil_comparei);
+	stencil_write_op = StencilWriteOp(stencil_write_opi);
 	stencil_reference = stencil_referencei;
 
 #ifdef DEBUG_ENABLED

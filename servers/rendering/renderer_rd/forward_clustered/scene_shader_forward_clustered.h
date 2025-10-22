@@ -173,6 +173,7 @@ public:
 			STENCIL_FLAG_READ = 1,
 			STENCIL_FLAG_WRITE = 2,
 			STENCIL_FLAG_WRITE_DEPTH_FAIL = 4,
+			STENCIL_FLAG_WRITE_STENCIL_FAIL = 8,
 		};
 
 		enum StencilCompare {
@@ -184,6 +185,16 @@ public:
 			STENCIL_COMPARE_GREATER_OR_EQUAL,
 			STENCIL_COMPARE_ALWAYS,
 			STENCIL_COMPARE_MAX // Not an actual operator, just the amount of operators.
+		};
+
+		enum StencilWriteOp {
+			STENCIL_WRITE_OP_REPLACE = 0,
+			STENCIL_WRITE_OP_ZERO = 1,
+			STENCIL_WRITE_OP_INCREMENT_AND_WRAP = 2,
+			STENCIL_WRITE_OP_DECREMENT_AND_WRAP = 3,
+			STENCIL_WRITE_OP_INCREMENT_AND_CLAMP = 4,
+			STENCIL_WRITE_OP_DECREMENT_AND_CLAMP = 5,
+			STENCIL_WRITE_OP_MAX // Not an actual operation, just the amount of operations.
 		};
 
 		struct PipelineKey {
@@ -271,6 +282,7 @@ public:
 		bool stencil_enabled = false;
 		uint32_t stencil_flags = 0;
 		StencilCompare stencil_compare = STENCIL_COMPARE_LESS;
+		StencilWriteOp stencil_write_op = STENCIL_WRITE_OP_REPLACE;
 		uint32_t stencil_reference = 0;
 
 		uint64_t last_pass = 0;

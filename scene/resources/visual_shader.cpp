@@ -1767,7 +1767,8 @@ bool VisualShader::_set(const StringName &p_name, const Variant &p_value) {
 			if (flag == "read") {
 				stencil_flags.erase("write");
 				stencil_flags.erase("write_depth_fail");
-			} else if (flag == "write" || flag == "write_depth_fail") {
+				stencil_flags.erase("write_stencil_fail");
+			} else if (flag == "write" || flag == "write_depth_fail" || flag == "write_stencil_fail") {
 				stencil_flags.erase("read");
 			}
 		} else {
@@ -2753,7 +2754,7 @@ void VisualShader::_update_shader() const {
 
 	const Vector<ShaderLanguage::ModeInfo> &smodes = ShaderTypes::get_singleton()->get_stencil_modes(RSE::ShaderMode(shader_mode));
 
-	if (stencil_enabled && smodes.size() > 0 && (stencil_flags.has("read") || stencil_flags.has("write") || stencil_flags.has("write_depth_fail"))) {
+	if (stencil_enabled && smodes.size() > 0 && (stencil_flags.has("read") || stencil_flags.has("write") || stencil_flags.has("write_depth_fail") || stencil_flags.has("write_stencil_fail"))) {
 		String stencil_mode;
 
 		Vector<String> flag_names;
