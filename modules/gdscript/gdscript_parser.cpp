@@ -3215,6 +3215,13 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_await(ExpressionNode *p_pr
 		push_error(R"(Expected signal or coroutine after "await".)");
 	}
 	await->to_await = element;
+
+	bool has_else = match(GDScriptTokenizer::Token::ELSE);
+
+	if (has_else) {
+		await->else_expr = parse_precedence(PREC_AWAIT, false);
+	}
+
 	complete_extents(await);
 
 	if (current_function) { // Might be null in a getter or setter.
@@ -5749,6 +5756,10 @@ void GDScriptParser::TreePrinter::print_assignment(AssignmentNode *p_assignment)
 void GDScriptParser::TreePrinter::print_await(AwaitNode *p_await) {
 	push_text("Await ");
 	print_expression(p_await->to_await);
+	if (p_await->else_expr != nullptr) {
+		push_text(" else ");
+		print_expression(p_await->else_expr);
+	}
 }
 
 void GDScriptParser::TreePrinter::print_binary_op(BinaryOpNode *p_binary_op) {

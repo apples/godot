@@ -996,6 +996,14 @@ void GDScriptFunction::disassemble(const Vector<String> &p_code_lines) const {
 
 				incr = 2;
 			} break;
+			case OPCODE_AWAIT_ELSE: {
+				text += "await_else ";
+				text += DADDR(1);
+				text += " (else_ip=";
+				text += itos(_code_ptr[ip + 2]);
+				text += ")";
+				incr = 3;
+			} break;
 			case OPCODE_CREATE_LAMBDA: {
 				int instr_var_args = _code_ptr[++ip];
 				int captures_count = _code_ptr[ip + 1 + instr_var_args];

@@ -166,6 +166,13 @@ Variant GDScriptFunctionState::_signal_callback(const Variant **p_args, int p_ar
 	return resume(arg);
 }
 
+void GDScriptFunctionState::_signal_disconnected(Ref<GDScriptFunctionState> self) {
+	ERR_FAIL_COND(!_has_await_else);
+	_has_await_else = false;
+	state.ip = _await_else_ip;
+	resume(Variant());
+}
+
 bool GDScriptFunctionState::is_valid(bool p_extended_check) const {
 	if (function == nullptr) {
 		return false;
@@ -263,6 +270,7 @@ void GDScriptFunctionState::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("resume", "arg"), &GDScriptFunctionState::resume, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("is_valid", "extended_check"), &GDScriptFunctionState::is_valid, DEFVAL(false));
 	ClassDB::bind_vararg_method(METHOD_FLAGS_DEFAULT, "_signal_callback", &GDScriptFunctionState::_signal_callback, MethodInfo("_signal_callback"));
+	ClassDB::bind_method(D_METHOD("_signal_disconnected", "self"), &GDScriptFunctionState::_signal_disconnected);
 
 	ADD_SIGNAL(MethodInfo("completed", PropertyInfo(Variant::NIL, "result", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT)));
 }

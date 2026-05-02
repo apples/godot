@@ -1235,6 +1235,9 @@ void Object::_remove_user_signal(const StringName &p_name) {
 	ERR_FAIL_COND_MSG(!s->removable, "Signal is not removable (not added with add_user_signal).");
 	for (const KeyValue<Callable, SignalData::Slot> &slot_kv : s->slot_map) {
 		Object *target = slot_kv.key.get_object();
+		if (slot_kv.value.conn.on_disconnect_callable.is_valid()) {
+			slot_kv.value.conn.on_disconnect_callable.call_deferred();
+		}
 		if (likely(target)) {
 			target->connections.erase(slot_kv.value.cE);
 		}
@@ -1324,7 +1327,7 @@ Error Object::emit_signalp(const StringName &p_name, const Variant **p_args, int
 			}
 #endif
 			if (disconnect) {
-				_disconnect(p_name, slot_callables[i]);
+				_disconnect(p_name, slot_callables[i], false, true);
 			}
 		}
 	}
@@ -1605,6 +1608,10 @@ void Object::get_signals_connected_to_this(List<Connection> *p_connections) cons
 }
 
 Error Object::connect(const StringName &p_signal, const Callable &p_callable, uint32_t p_flags) {
+	return connect2(p_signal, p_callable, Callable(), p_flags);
+}
+
+Error Object::connect2(const StringName &p_signal, const Callable &p_callable, const Callable &p_on_disconnect_callable, uint32_t p_flags) {
 	ERR_FAIL_COND_V_MSG(p_callable.is_null(), ERR_INVALID_PARAMETER, vformat("Cannot connect to '%s': the provided callable is null.", p_signal));
 	OBJ_SIGNAL_LOCK
 
@@ -1658,6 +1665,7 @@ Error Object::connect(const StringName &p_signal, const Callable &p_callable, ui
 	Connection conn;
 	conn.callable = p_callable;
 	conn.signal = ::Signal(this, p_signal);
+	conn.on_disconnect_callable = p_on_disconnect_callable;
 	conn.flags = p_flags;
 	slot.conn = conn;
 	if (target_object) {
@@ -1718,7 +1726,7 @@ void Object::disconnect(const StringName &p_signal, const Callable &p_callable) 
 	_disconnect(p_signal, p_callable);
 }
 
-bool Object::_disconnect(const StringName &p_signal, const Callable &p_callable, bool p_force) {
+bool Object::_disconnect(const StringName &p_signal, const Callable &p_callable, bool p_force, bool p_suppress_on_disconnect) {
 	ERR_FAIL_COND_V_MSG(p_callable.is_null(), false, vformat("Cannot disconnect from '%s': the provided callable is null.", p_signal)); // Should use `is_null`, see note in `connect` about the use of `is_valid`.
 	OBJ_SIGNAL_LOCK
 
@@ -1739,6 +1747,10 @@ bool Object::_disconnect(const StringName &p_signal, const Callable &p_callable,
 		if (slot->reference_count > 0) {
 			return false;
 		}
+	}
+
+	if (!p_suppress_on_disconnect && slot->conn.on_disconnect_callable.is_valid()) {
+		slot->conn.on_disconnect_callable.call_deferred();
 	}
 
 	if (slot->cE) {
@@ -2434,6 +2446,9 @@ Object::~Object() {
 			for (const KeyValue<Callable, SignalData::Slot> &slot_kv : s->slot_map) {
 				Object *target = slot_kv.value.conn.callable.get_object();
 				if (likely(target)) {
+					if (slot_kv.value.conn.on_disconnect_callable.is_valid()) {
+						slot_kv.value.conn.on_disconnect_callable.call_deferred();
+					}
 					target->connections.erase(slot_kv.value.cE);
 				}
 			}

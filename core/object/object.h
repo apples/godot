@@ -607,6 +607,7 @@ public:
 	struct Connection {
 		::Signal signal;
 		Callable callable;
+		Callable on_disconnect_callable;
 
 		uint32_t flags = 0;
 		bool operator<(const Connection &p_conn) const;
@@ -794,7 +795,7 @@ protected:
 	static void _add_class_to_classdb(const GDType &p_class, const GDType *p_inherits);
 	static void _get_property_list_from_classdb(const StringName &p_class, List<PropertyInfo> *p_list, bool p_no_inheritance, const Object *p_validator);
 
-	bool _disconnect(const StringName &p_signal, const Callable &p_callable, bool p_force = false);
+	bool _disconnect(const StringName &p_signal, const Callable &p_callable, bool p_force = false, bool p_suppress_on_disconnect = false);
 	void _define_ancestry(AncestralClass p_class) { _ancestry |= (uint32_t)p_class; }
 	// Prefer using derives_from.
 	bool _has_ancestry(AncestralClass p_class) const { return _ancestry & (uint32_t)p_class; }
@@ -987,6 +988,7 @@ public:
 	DEBUG_VIRTUAL void get_signals_connected_to_this(List<Connection> *p_connections) const;
 
 	DEBUG_VIRTUAL Error connect(const StringName &p_signal, const Callable &p_callable, uint32_t p_flags = 0);
+	DEBUG_VIRTUAL Error connect2(const StringName &p_signal, const Callable &p_callable, const Callable &p_notify_free_callable, uint32_t p_flags = 0);
 	DEBUG_VIRTUAL void disconnect(const StringName &p_signal, const Callable &p_callable);
 	DEBUG_VIRTUAL bool is_connected(const StringName &p_signal, const Callable &p_callable) const;
 	DEBUG_VIRTUAL bool has_connections(const StringName &p_signal) const;

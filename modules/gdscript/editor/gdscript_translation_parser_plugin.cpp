@@ -251,7 +251,11 @@ void GDScriptEditorTranslationParserPlugin::_assess_expression(const GDScriptPar
 			_assess_assignment(static_cast<const GDScriptParser::AssignmentNode *>(p_expression));
 		} break;
 		case GDScriptParser::Node::AWAIT: {
-			_assess_expression(static_cast<const GDScriptParser::AwaitNode *>(p_expression)->to_await);
+			const GDScriptParser::AwaitNode *await_node = static_cast<const GDScriptParser::AwaitNode *>(p_expression);
+			_assess_expression(await_node->to_await);
+			if (await_node->else_expr != nullptr) {
+				_assess_expression(await_node->else_expr);
+			}
 		} break;
 		case GDScriptParser::Node::BINARY_OPERATOR: {
 			const GDScriptParser::BinaryOpNode *binary_op_node = static_cast<const GDScriptParser::BinaryOpNode *>(p_expression);

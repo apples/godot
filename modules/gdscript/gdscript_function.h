@@ -320,6 +320,7 @@ public:
 		OPCODE_CALL_METHOD_BIND_VALIDATED_NO_RETURN,
 		OPCODE_AWAIT,
 		OPCODE_AWAIT_RESUME,
+		OPCODE_AWAIT_ELSE,
 		OPCODE_CREATE_LAMBDA,
 		OPCODE_CREATE_SELF_LAMBDA,
 		OPCODE_JUMP,
@@ -617,10 +618,14 @@ class GDScriptFunctionState : public RefCounted {
 	GDScriptFunction *function = nullptr;
 	GDScriptFunction::CallState state;
 	Variant _signal_callback(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
+	void _signal_disconnected(Ref<GDScriptFunctionState> self);
 	Ref<GDScriptFunctionState> first_state;
 
 	SelfList<GDScriptFunctionState> scripts_list;
 	SelfList<GDScriptFunctionState> instances_list;
+
+	bool _has_await_else = false;
+	int _await_else_ip = 0;
 
 protected:
 	static void _bind_methods();

@@ -445,6 +445,7 @@ public:
 
 	struct AwaitNode : public ExpressionNode {
 		ExpressionNode *to_await = nullptr;
+		ExpressionNode *else_expr = nullptr;
 
 		AwaitNode() {
 			type = AWAIT;

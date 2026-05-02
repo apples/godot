@@ -772,10 +772,31 @@ GDScriptCodeGenerator::Address GDScriptCompiler::_parse_expression(CodeGen &code
 				return GDScriptCodeGenerator::Address();
 			}
 
-			gen->write_await(result, argument);
+			if (await->else_expr != nullptr) {
+				gen->write_await_else_begin(result, argument);
 
-			if (argument.mode == GDScriptCodeGenerator::Address::TEMPORARY) {
-				gen->pop_temporary();
+				if (argument.mode == GDScriptCodeGenerator::Address::TEMPORARY) {
+					gen->pop_temporary();
+				}
+
+				GDScriptCodeGenerator::Address else_val = _parse_expression(codegen, r_error, await->else_expr);
+				if (r_error) {
+					return GDScriptCodeGenerator::Address();
+				}
+
+				gen->write_assign(result, else_val);
+
+				if (else_val.mode == GDScriptCodeGenerator::Address::TEMPORARY) {
+					gen->pop_temporary();
+				}
+
+				gen->write_await_else_end();
+			} else {
+				gen->write_await(result, argument);
+
+				if (argument.mode == GDScriptCodeGenerator::Address::TEMPORARY) {
+					gen->pop_temporary();
+				}
 			}
 
 			return result;

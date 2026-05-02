@@ -1508,6 +1508,24 @@ void GDScriptByteCodeGenerator::write_await(const Address &p_target, const Addre
 	append(p_target);
 }
 
+void GDScriptByteCodeGenerator::write_await_else_begin(const Address &p_target, const Address &p_operand) {
+	append_opcode(GDScriptFunction::OPCODE_AWAIT_ELSE);
+	append(p_operand);
+	int fail_jmp_pos = opcodes.size();
+	append(0);
+	append_opcode(GDScriptFunction::OPCODE_AWAIT_RESUME);
+	append(p_target);
+	append_opcode(GDScriptFunction::OPCODE_JUMP);
+	await_else_cont_jmp_addrs.push_back(opcodes.size());
+	append(0); // Patched by write_await_else_end().
+	patch_jump(fail_jmp_pos);
+}
+
+void GDScriptByteCodeGenerator::write_await_else_end() {
+	patch_jump(await_else_cont_jmp_addrs.back()->get());
+	await_else_cont_jmp_addrs.pop_back();
+}
+
 void GDScriptByteCodeGenerator::write_if(const Address &p_condition) {
 	append_opcode(GDScriptFunction::OPCODE_JUMP_IF_NOT);
 	append(p_condition);

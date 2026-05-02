@@ -3064,16 +3064,31 @@ void GDScriptAnalyzer::reduce_await(GDScriptParser::AwaitNode *p_await) {
 		reduce_expression(p_await->to_await);
 	}
 
+	if (p_await->else_expr != nullptr) {
+		reduce_expression(p_await->else_expr);
+	}
+
 	GDScriptParser::DataType await_type = p_await->to_await->get_datatype();
 	// We cannot infer the type of the result of waiting for a signal.
 	if (await_type.is_hard_type() && await_type.kind == GDScriptParser::DataType::BUILTIN && await_type.builtin_type == Variant::SIGNAL) {
 		await_type.kind = GDScriptParser::DataType::VARIANT;
 		await_type.type_source = GDScriptParser::DataType::UNDETECTED;
-	} else if (p_await->to_await->is_constant) {
+	} else if (p_await->to_await->is_constant && p_await->else_expr == nullptr) {
+		// Only fold to a constant when there is no else clause, since else introduces uncertainty.
 		p_await->is_constant = p_await->to_await->is_constant;
 		p_await->reduced_value = p_await->to_await->reduced_value;
 	}
 	await_type.is_coroutine = false;
+
+	// If the `await` result and the `else` result have different types, widen to Variant.
+	if (p_await->else_expr != nullptr) {
+		GDScriptParser::DataType else_type = p_await->else_expr->get_datatype();
+		if (!await_type.is_hard_type() || !else_type.is_hard_type() || await_type != else_type) {
+			await_type.kind = GDScriptParser::DataType::VARIANT;
+			await_type.type_source = GDScriptParser::DataType::UNDETECTED;
+		}
+	}
+
 	p_await->set_datatype(await_type);
 
 #ifdef DEBUG_ENABLED

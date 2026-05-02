@@ -151,6 +151,7 @@ class GDScriptByteCodeGenerator : public GDScriptCodeGenerator {
 	List<Address> for_range_step_variables;
 	List<int> while_jmp_addrs;
 	List<int> continue_addrs;
+	List<int> await_else_cont_jmp_addrs;
 
 	// Used to patch jumps with `and` and `or` operators with short-circuit.
 	List<int> logic_op_jump_pos1;
@@ -535,6 +536,8 @@ public:
 	virtual void write_construct_dictionary(const Address &p_target, const Vector<Address> &p_arguments) override;
 	virtual void write_construct_typed_dictionary(const Address &p_target, const GDScriptDataType &p_key_type, const GDScriptDataType &p_value_type, const Vector<Address> &p_arguments) override;
 	virtual void write_await(const Address &p_target, const Address &p_operand) override;
+	virtual void write_await_else_begin(const Address &p_target, const Address &p_operand) override;
+	virtual void write_await_else_end() override;
 	virtual void write_if(const Address &p_condition) override;
 	virtual void write_else() override;
 	virtual void write_endif() override;

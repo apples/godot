@@ -310,6 +310,7 @@ void (*type_init_function_table[])(Variant *) = {
 		&&OPCODE_CALL_METHOD_BIND_VALIDATED_NO_RETURN,   \
 		&&OPCODE_AWAIT,                                  \
 		&&OPCODE_AWAIT_RESUME,                           \
+		&&OPCODE_AWAIT_ELSE,                             \
 		&&OPCODE_CREATE_LAMBDA,                          \
 		&&OPCODE_CREATE_SELF_LAMBDA,                     \
 		&&OPCODE_JUMP,                                   \
@@ -2575,6 +2576,8 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 						if (obj) {
 							if (obj->is_class_ptr(GDScriptFunctionState::get_class_ptr_static())) {
 								result = Signal(obj, SNAME("completed"));
+								// Drop reference to the awaited GDScriptFunctionState, this prevents cyclical leaks.
+								*argobj = Variant();
 							}
 						}
 					}
@@ -2659,6 +2662,114 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 				ip += 2;
 			}
 			DISPATCH_OPCODE;
+
+			OPCODE(OPCODE_AWAIT_ELSE) {
+				// This works exactly as OPCODE_AWAIT does, except that we set the `else` callback.
+				CHECK_SPACE(4);
+
+				GET_VARIANT_PTR(argobj, 0);
+				int else_jmp = _code_ptr[ip + 2];
+				GD_ERR_BREAK(else_jmp < 0 || else_jmp > _code_size);
+
+				Signal sig;
+				bool is_signal = true;
+
+				{
+					Variant result = *argobj;
+
+					if (argobj->get_type() == Variant::OBJECT) {
+						bool was_freed = false;
+						Object *obj = argobj->get_validated_object_with_check(was_freed);
+
+						if (was_freed) {
+							err_text = "Trying to await on a freed object.";
+							OPCODE_BREAK;
+						}
+
+						// Is this even possible to be null at this point?
+						if (obj) {
+							if (obj->is_class_ptr(GDScriptFunctionState::get_class_ptr_static())) {
+								result = Signal(obj, SNAME("completed"));
+								// Drop reference to the awaited GDScriptFunctionState, this prevents cyclical leaks.
+								*argobj = Variant();
+							}
+						}
+					}
+
+					if (is_signal) {
+						if (result.get_type() != Variant::SIGNAL) {
+							// Not async, return immediately using the target from OPCODE_AWAIT_RESUME.
+							GET_VARIANT_PTR(target, 3);
+							*target = result;
+							ip += 5; // Skip OPCODE_AWAIT_RESUME and its data, and OPCODE_JUMP.
+							is_signal = false;
+						} else {
+							sig = result;
+						}
+					}
+				}
+
+				if (is_signal) {
+					Ref<GDScriptFunctionState> gdfs = memnew(GDScriptFunctionState);
+					gdfs->function = this;
+
+					gdfs->state.stack.resize(alloca_size);
+
+					// First `FIXED_ADDRESSES_MAX` stack addresses are special, so we just skip them here.
+					for (int i = FIXED_ADDRESSES_MAX; i < _stack_size; i++) {
+						memnew_placement(&gdfs->state.stack.write[sizeof(Variant) * i], Variant(stack[i]));
+					}
+					gdfs->state.stack_size = _stack_size;
+					gdfs->state.ip = ip + 3;
+					gdfs->state.line = line;
+					gdfs->state.script = _script;
+					{
+						MutexLock lock(GDScriptLanguage::get_singleton()->mutex);
+						_script->pending_func_states.add(&gdfs->scripts_list);
+						if (p_instance) {
+							gdfs->state.instance = p_instance;
+							p_instance->pending_func_states.add(&gdfs->instances_list);
+						} else {
+							gdfs->state.instance = nullptr;
+						}
+					}
+#ifdef DEBUG_ENABLED
+					gdfs->state.function_name = name;
+					gdfs->state.script_path = _script->get_script_path();
+#endif
+					gdfs->state.defarg = defarg;
+					gdfs->function = this;
+
+					gdfs->_has_await_else = true;
+					gdfs->_await_else_ip = else_jmp;
+
+					if (p_state) {
+						gdfs->state.completed = p_state->completed;
+					} else {
+						gdfs->state.completed = Signal(gdfs.ptr(), SNAME("completed"));
+					}
+
+					retvalue = gdfs;
+
+					Error err = sig.connect2(
+							Callable(gdfs.ptr(), "_signal_callback").bind(retvalue),
+							Callable(gdfs.ptr(), "_signal_disconnected").bind(retvalue),
+							Object::CONNECT_ONE_SHOT);
+
+					if (err != OK) {
+						err_text = "Error connecting to signal: " + sig.get_name() + " during await.";
+						OPCODE_BREAK;
+					}
+
+					awaited = true;
+
+#ifdef DEBUG_ENABLED
+					exit_ok = true;
+#endif
+					OPCODE_BREAK;
+				}
+			}
+			DISPATCH_OPCODE; // Needed for synchronous calls (when result is immediately available).
 
 			OPCODE(OPCODE_CREATE_LAMBDA) {
 				LOAD_INSTRUCTION_ARGS
