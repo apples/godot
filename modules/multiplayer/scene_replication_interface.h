@@ -43,18 +43,43 @@ class SceneReplicationInterface : public RefCounted {
 	GDCLASS(SceneReplicationInterface, RefCounted);
 
 private:
+	struct NetID {
+		uint32_t remote_peer = 0;
+		uint32_t net_id = 0;
+
+		uint32_t hash() const {
+			uint32_t h = hash_murmur3_one_32(remote_peer);
+			h = hash_murmur3_one_32(net_id, h);
+			return hash_fmix32(h);
+		}
+
+		bool operator==(const NetID &p_other) const {
+			return remote_peer == p_other.remote_peer && net_id == p_other.net_id;
+		}
+		bool operator!=(const NetID &p_other) const {
+			return !(*this == p_other);
+		}
+
+		NetID() {}
+		NetID(uint32_t p_remote_peer, uint32_t p_net_id) {
+			remote_peer = p_remote_peer;
+			net_id = p_net_id;
+		}
+	};
+
 	struct TrackedNode {
 		ObjectID id;
-		uint32_t net_id = 0;
-		uint32_t remote_peer = 0;
+		NetID net_id;
 		ObjectID spawner;
 		HashSet<ObjectID> synchronizers;
+		int spawn_scene_id = MultiplayerSpawner::INVALID_ID;
+		Variant spawn_argument;
 
 		bool operator==(const ObjectID &p_other) { return id == p_other; }
 
 		TrackedNode() {}
 		TrackedNode(const ObjectID &p_id) { id = p_id; }
-		TrackedNode(const ObjectID &p_id, uint32_t p_net_id) {
+		TrackedNode(const ObjectID &p_id, const NetID &p_net_id) {
 			id = p_id;
 			net_id = p_net_id;
 		}
@@ -65,8 +90,12 @@ private:
 		HashSet<ObjectID> spawn_nodes;
 		HashMap<ObjectID, uint64_t> last_watch_usecs;
 		HashMap<uint32_t, ObjectID> recv_sync_ids;
-		HashMap<uint32_t, ObjectID> recv_nodes;
+		HashMap<NetID, ObjectID> recv_nodes;
 		uint16_t last_sent_sync = 0;
+	};
+
+	struct TrackedSpawner {
+		HashSet<ObjectID> tracked_nodes;
 	};
 
 	// Replication state.
@@ -75,6 +104,8 @@ private:
 	HashMap<ObjectID, TrackedNode> tracked_nodes;
 	RBSet<ObjectID> spawned_nodes;
 	HashSet<ObjectID> sync_nodes;
+	HashMap<ObjectID, TrackedSpawner> tracked_spawners;
+	HashMap<NetID, ObjectID> known_nodes;
 
 	// Pending local spawn information (handles spawning nested nodes during ready).
 	HashSet<ObjectID> spawn_queue;
@@ -99,7 +130,7 @@ private:
 
 	bool _has_authority(const Node *p_node);
 	bool _verify_synchronizer(int p_peer, MultiplayerSynchronizer *p_sync, uint32_t &r_net_id);
-	MultiplayerSynchronizer *_find_synchronizer(int p_peer, uint32_t p_net_ida);
+	MultiplayerSynchronizer *_find_synchronizer(int p_peer, uint32_t p_net_id);
 
 	void _send_sync(int p_peer, const HashSet<ObjectID> &p_synchronizers, uint16_t p_sync_net_time, uint64_t p_usec);
 	void _send_delta(int p_peer, const HashSet<ObjectID> &p_synchronizers, uint64_t p_usec, const HashMap<ObjectID, uint64_t> &p_last_watch_usecs);
@@ -111,6 +142,14 @@ private:
 	Error _update_sync_visibility(int p_peer, MultiplayerSynchronizer *p_sync);
 	Error _update_spawn_visibility(int p_peer, const ObjectID &p_oid);
 	void _free_remotes(const PeerInfo &p_info);
+
+	void _set_tracked_spawner(TrackedNode &p_tracked, ObjectID p_spawner);
+	void _spawner_authority_changed(int prev_authority, const ObjectID &p_oid);
+	void _spawner_authority_release(const ObjectID &p_oid);
+	void _spawner_authority_adopt(int prev_authority, const ObjectID &p_oid);
+	void _spawner_authority_move(int prev_authority, const ObjectID &p_oid);
+
+	void _set_net_id(const ObjectID &p_oid, const NetID &net_id);
 
 	template <typename T>
 	static T *get_id_as(const ObjectID &p_id) {

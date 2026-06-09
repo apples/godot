@@ -33,14 +33,23 @@
 #include "scene_multiplayer.h"
 
 #include "core/debugger/engine_debugger.h"
+#include "core/error/error_list.h"
+#include "core/error/error_macros.h"
 #include "core/io/marshalls.h"
 #include "core/object/callable_mp.h"
+#include "core/object/object_id.h"
 #include "core/os/os.h"
+#include "core/variant/dictionary.h"
 #include "scene/main/node.h"
+
+#include "modules/multiplayer/multiplayer_spawner.h"
 
 #define MAKE_ROOM(m_amount) \
 	if (packet_cache.size() < m_amount) \
 		packet_cache.resize(m_amount);
+
+constexpr uint8_t SPAWN_HAS_REMOTE_PEER_FLAG = 1u << SceneMultiplayer::CMD_FLAG_0_SHIFT;
+constexpr uint8_t DESPAWN_HAS_REMOTE_PEER_FLAG = 1u << SceneMultiplayer::CMD_FLAG_0_SHIFT;
 
 #ifdef DEBUG_ENABLED
 _FORCE_INLINE_ void SceneReplicationInterface::_profile_node_data(const String &p_what, ObjectID p_id, int p_size) {
@@ -64,23 +73,23 @@ void SceneReplicationInterface::_untrack(const ObjectID &p_id) {
 	if (!tracked_nodes.has(p_id)) {
 		return;
 	}
-	uint32_t net_id = tracked_nodes[p_id].net_id;
-	uint32_t peer = tracked_nodes[p_id].remote_peer;
+	NetID net_id = tracked_nodes[p_id].net_id;
+	_set_tracked_spawner(tracked_nodes[p_id], ObjectID());
 	tracked_nodes.erase(p_id);
-	// If it was spawned by a remote, remove it from the received nodes.
-	if (peer && peers_info.has(peer)) {
-		peers_info[peer].recv_nodes.erase(net_id);
+	if (net_id != NetID() && known_nodes.has(net_id)) {
+		known_nodes.erase(net_id);
 	}
-	// If we spawned or synced it, we need to remove it from any peer it was sent to.
-	if (net_id || peer == 0) {
-		for (KeyValue<int, PeerInfo> &E : peers_info) {
-			E.value.spawn_nodes.erase(p_id);
+	spawned_nodes.erase(p_id);
+	for (KeyValue<int, PeerInfo> &E : peers_info) {
+		if (net_id != NetID()) {
+			E.value.recv_nodes.erase(net_id);
 		}
+		E.value.spawn_nodes.erase(p_id);
 	}
 }
 
 void SceneReplicationInterface::_free_remotes(const PeerInfo &p_info) {
-	for (const KeyValue<uint32_t, ObjectID> &E : p_info.recv_nodes) {
+	for (const KeyValue<NetID, ObjectID> &E : p_info.recv_nodes) {
 		Node *node = tracked_nodes.has(E.value) ? get_id_as<Node>(E.value) : nullptr;
 		ERR_CONTINUE(!node);
 		node->queue_free();
@@ -111,12 +120,19 @@ void SceneReplicationInterface::on_reset() {
 	for (const KeyValue<int, PeerInfo> &E : peers_info) {
 		_free_remotes(E.value);
 	}
+	for (const KeyValue<ObjectID, TrackedSpawner> &E : tracked_spawners) {
+		MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(E.key);
+		if (spawner && spawner->is_connected(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed))) {
+			spawner->disconnect(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed));
+		}
+	}
 	peers_info.clear();
+	tracked_spawners.clear();
+	known_nodes.clear();
 	// Tracked nodes are cleared on deletion, here we only reset the ids so they can be later re-assigned.
 	for (KeyValue<ObjectID, TrackedNode> &E : tracked_nodes) {
 		TrackedNode &tobj = E.value;
-		tobj.net_id = 0;
-		tobj.remote_peer = 0;
+		tobj.net_id = NetID();
 	}
 	for (const ObjectID &oid : sync_nodes) {
 		MultiplayerSynchronizer *sync = get_id_as<MultiplayerSynchronizer>(oid);
@@ -161,10 +177,12 @@ Error SceneReplicationInterface::on_spawn(Object *p_obj, Variant p_config) {
 	// Track node.
 	const ObjectID oid = node->get_instance_id();
 	TrackedNode &tobj = _track(oid);
+	tobj.spawn_scene_id = spawner->find_spawnable_scene_index_from_object(oid);
+	tobj.spawn_argument = spawner->get_spawn_argument(oid);
 
 	// Spawn state needs to be callected after "ready", but the spawn order follows "enter_tree".
 	ERR_FAIL_COND_V(tobj.spawner != ObjectID(), ERR_ALREADY_IN_USE);
-	tobj.spawner = spawner->get_instance_id();
+	_set_tracked_spawner(tobj, spawner->get_instance_id());
 	spawn_queue.insert(oid);
 	node->connect(SceneStringName(ready), callable_mp(this, &SceneReplicationInterface::_node_ready).bind(oid), Node::CONNECT_ONE_SHOT);
 	return OK;
@@ -198,25 +216,31 @@ Error SceneReplicationInterface::on_despawn(Object *p_obj, Variant p_config) {
 	ERR_FAIL_COND_V(!node || p_config.get_type() != Variant::OBJECT, ERR_INVALID_PARAMETER);
 	MultiplayerSpawner *spawner = Object::cast_to<MultiplayerSpawner>(p_config.get_validated_object());
 	ERR_FAIL_COND_V(!p_obj || !spawner, ERR_INVALID_PARAMETER);
-	// Forcibly despawn to all peers that knowns me.
-	int len = 0;
-	Error err = _make_despawn_packet(node, len);
-	ERR_FAIL_COND_V(err != OK, ERR_BUG);
 	const ObjectID oid = p_obj->get_instance_id();
-	for (const KeyValue<int, PeerInfo> &E : peers_info) {
-		if (!E.value.spawn_nodes.has(oid)) {
-			continue;
+	ERR_FAIL_COND_V(!tracked_nodes.has(oid), ERR_INVALID_PARAMETER);
+	TrackedNode &tobj = tracked_nodes[oid];
+	// Forcibly despawn to all peers that knowns me.
+	if (tobj.net_id != NetID()) {
+		int len = 0;
+		Error err = _make_despawn_packet(node, len);
+		ERR_FAIL_COND_V(err != OK, ERR_BUG);
+		for (const KeyValue<int, PeerInfo> &E : peers_info) {
+			if (!E.value.spawn_nodes.has(oid)) {
+				continue;
+			}
+			_send_raw(packet_cache.ptr(), len, E.key, true);
 		}
-		_send_raw(packet_cache.ptr(), len, E.key, true);
 	}
 	// Also remove spawner tracking from the replication state.
-	ERR_FAIL_COND_V(!tracked_nodes.has(oid), ERR_INVALID_PARAMETER);
-	TrackedNode &tobj = _track(oid);
 	ERR_FAIL_COND_V(tobj.spawner != spawner->get_instance_id(), ERR_INVALID_PARAMETER);
-	tobj.spawner = ObjectID();
+	_set_tracked_spawner(tobj, ObjectID());
 	spawned_nodes.erase(oid);
 	for (KeyValue<int, PeerInfo> &E : peers_info) {
 		E.value.spawn_nodes.erase(oid);
+	}
+	if (tobj.net_id != NetID()) {
+		ERR_FAIL_COND_V(!known_nodes.has(tobj.net_id), ERR_BUG);
+		known_nodes.erase(tobj.net_id);
 	}
 	return OK;
 }
@@ -276,13 +300,14 @@ Error SceneReplicationInterface::on_replication_stop(Object *p_obj, Variant p_co
 	const ObjectID oid = node->get_instance_id();
 	const ObjectID sid = sync->get_instance_id();
 	ERR_FAIL_COND_V(!tracked_nodes.has(oid), ERR_INVALID_PARAMETER);
-	TrackedNode &tobj = _track(oid);
+	TrackedNode &tobj = tracked_nodes[oid];
 	tobj.synchronizers.erase(sid);
 	sync_nodes.erase(sid);
 	for (KeyValue<int, PeerInfo> &E : peers_info) {
 		E.value.sync_nodes.erase(sid);
 		E.value.last_watch_usecs.erase(sid);
-		if (sync->get_net_id() && uint32_t(E.key) == tobj.remote_peer) {
+		if (sync->get_net_id() && E.key == sync->get_multiplayer_authority()) {
+			ERR_CONTINUE(!E.value.recv_sync_ids.has(sync->get_net_id()));
 			E.value.recv_sync_ids.erase(sync->get_net_id());
 		}
 	}
@@ -310,7 +335,7 @@ bool SceneReplicationInterface::is_rpc_visible(const ObjectID &p_oid, int p_peer
 	if (tnode.synchronizers.is_empty()) {
 		return true; // No synchronizers means no visibility restrictions.
 	}
-	if (tnode.remote_peer && uint32_t(p_peer) == tnode.remote_peer) {
+	if (tnode.net_id != NetID() && peers_info.has(p_peer) && peers_info[p_peer].recv_nodes.has(tnode.net_id)) {
 		return true; // RPCs on spawned nodes are always visible to spawner.
 	} else if (spawned_nodes.has(p_oid)) {
 		// It's a spawned node we control, this can be fast.
@@ -471,17 +496,21 @@ Error SceneReplicationInterface::_make_spawn_packet(Node *p_node, MultiplayerSpa
 	TrackedNode *tnode = tracked_nodes.getptr(oid);
 	ERR_FAIL_NULL_V(tnode, ERR_INVALID_PARAMETER);
 
-	if (tnode->net_id == 0) {
-		// Ensure the node has an ID.
-		tnode->net_id = ++last_net_id;
+	if (tnode->net_id == NetID()) {
+		_set_net_id(oid, NetID(multiplayer->get_unique_id(), ++last_net_id));
 	}
-	uint32_t nid = tnode->net_id;
+	ERR_FAIL_COND_V(tnode->net_id.remote_peer == 0, ERR_BUG);
+	uint32_t remote_peer = 0;
+	if ((int)tnode->net_id.remote_peer != multiplayer->get_unique_id()) {
+		remote_peer = tnode->net_id.remote_peer;
+	}
+	uint32_t nid = tnode->net_id.net_id;
 	ERR_FAIL_COND_V(!nid, ERR_UNCONFIGURED);
 
 	// Prepare custom arg and scene_id
-	uint8_t scene_id = p_spawner->find_spawnable_scene_index_from_object(oid);
+	uint8_t scene_id = tnode->spawn_scene_id;
 	bool is_custom = scene_id == MultiplayerSpawner::INVALID_ID;
-	Variant spawn_arg = p_spawner->get_spawn_argument(oid);
+	Variant spawn_arg = tnode->spawn_argument;
 	int spawn_arg_size = 0;
 	if (is_custom) {
 		Error err = MultiplayerAPI::encode_and_compress_variant(spawn_arg, nullptr, spawn_arg_size, false);
@@ -522,12 +551,16 @@ Error SceneReplicationInterface::_make_spawn_packet(Node *p_node, MultiplayerSpa
 	int path_id = multiplayer_cache->make_object_cache(p_spawner);
 	CharString cname = p_node->get_name().string().utf8();
 	int nlen = encode_cstring(cname.get_data(), nullptr);
-	MAKE_ROOM(1 + 1 + 4 + 4 + 4 + 4 * sync_ids.size() + 4 + nlen + (is_custom ? 4 + spawn_arg_size : 0) + state_size);
+	MAKE_ROOM(1 + 1 + 4 + 4 + 4 + 4 * sync_ids.size() + 4 + nlen + (is_custom ? 4 + spawn_arg_size : 0) + state_size + (remote_peer != 0u ? 4 : 0));
 	uint8_t *ptr = packet_cache.ptrw();
 	ptr[0] = (uint8_t)SceneMultiplayer::NETWORK_COMMAND_SPAWN;
 	ptr[1] = scene_id;
 	int ofs = 2;
 	ofs += encode_uint32(path_id, &ptr[ofs]);
+	if (remote_peer != 0u) {
+		ptr[0] |= SPAWN_HAS_REMOTE_PEER_FLAG;
+		ofs += encode_uint32(remote_peer, &ptr[ofs]);
+	}
 	ofs += encode_uint32(nid, &ptr[ofs]);
 	ofs += encode_uint32(sync_ids.size(), &ptr[ofs]);
 	ofs += encode_uint32(nlen, &ptr[ofs]);
@@ -556,18 +589,28 @@ Error SceneReplicationInterface::_make_despawn_packet(Node *p_node, int &r_len) 
 	const ObjectID oid = p_node->get_instance_id();
 	const TrackedNode *tnode = tracked_nodes.getptr(oid);
 	ERR_FAIL_NULL_V(tnode, ERR_INVALID_PARAMETER);
-	MAKE_ROOM(5);
+	ERR_FAIL_COND_V(tnode->net_id == NetID(), ERR_BUG);
+	bool has_remote_peer = (int)tnode->net_id.remote_peer != multiplayer->get_unique_id();
+	MAKE_ROOM(5 + (has_remote_peer ? 4 : 0));
 	uint8_t *ptr = packet_cache.ptrw();
 	ptr[0] = (uint8_t)SceneMultiplayer::NETWORK_COMMAND_DESPAWN;
 	int ofs = 1;
-	uint32_t nid = tnode->net_id;
+	if (has_remote_peer) {
+		ptr[0] |= DESPAWN_HAS_REMOTE_PEER_FLAG;
+		ofs += encode_uint32(tnode->net_id.remote_peer, &ptr[ofs]);
+	}
+	uint32_t nid = tnode->net_id.net_id;
 	ofs += encode_uint32(nid, &ptr[ofs]);
 	r_len = ofs;
 	return OK;
 }
 
 Error SceneReplicationInterface::on_spawn_receive(int p_from, const uint8_t *p_buffer, int p_buffer_len) {
-	ERR_FAIL_COND_V_MSG(p_buffer_len < 18, ERR_INVALID_DATA, "Invalid spawn packet received");
+	if (p_buffer[0] & SPAWN_HAS_REMOTE_PEER_FLAG) {
+		ERR_FAIL_COND_V_MSG(p_buffer_len < 22, ERR_INVALID_DATA, "Invalid spawn packet received");
+	} else {
+		ERR_FAIL_COND_V_MSG(p_buffer_len < 18, ERR_INVALID_DATA, "Invalid spawn packet received");
+	}
 	int ofs = 1; // The spawn/despawn command.
 	uint8_t scene_id = p_buffer[ofs];
 	ofs += 1;
@@ -577,6 +620,13 @@ Error SceneReplicationInterface::on_spawn_receive(int p_from, const uint8_t *p_b
 	ERR_FAIL_NULL_V(spawner, ERR_DOES_NOT_EXIST);
 	ERR_FAIL_COND_V(p_from != spawner->get_multiplayer_authority(), ERR_UNAUTHORIZED);
 
+	uint32_t remote_peer = p_from;
+	if (p_buffer[0] & SPAWN_HAS_REMOTE_PEER_FLAG) {
+		remote_peer = decode_uint32(&p_buffer[ofs]);
+		ofs += 4;
+		ERR_FAIL_COND_V((int)remote_peer == p_from, ERR_INVALID_DATA);
+		ERR_FAIL_COND_V(remote_peer == 0u, ERR_INVALID_DATA);
+	}
 	uint32_t net_id = decode_uint32(&p_buffer[ofs]);
 	ofs += 4;
 	uint32_t sync_len = decode_uint32(&p_buffer[ofs]);
@@ -602,17 +652,17 @@ Error SceneReplicationInterface::on_spawn_receive(int p_from, const uint8_t *p_b
 	ERR_FAIL_COND_V(parent->has_node(name), ERR_INVALID_DATA);
 
 	Node *node = nullptr;
+	Variant spawn_arg;
 	if (scene_id == MultiplayerSpawner::INVALID_ID) {
 		// Custom spawn.
 		ERR_FAIL_COND_V(p_buffer_len - ofs < 4, ERR_INVALID_DATA);
 		uint32_t arg_size = decode_uint32(&p_buffer[ofs]);
 		ofs += 4;
 		ERR_FAIL_COND_V(arg_size > uint32_t(p_buffer_len - ofs), ERR_INVALID_DATA);
-		Variant v;
-		Error err = MultiplayerAPI::decode_and_decompress_variant(v, &p_buffer[ofs], arg_size, nullptr, false);
+		Error err = MultiplayerAPI::decode_and_decompress_variant(spawn_arg, &p_buffer[ofs], arg_size, nullptr, false);
 		ERR_FAIL_COND_V(err != OK, err);
 		ofs += arg_size;
-		node = spawner->instantiate_custom(v);
+		node = spawner->instantiate_custom(spawn_arg);
 	} else {
 		// Scene based spawn.
 		node = spawner->instantiate_scene(scene_id);
@@ -622,13 +672,15 @@ Error SceneReplicationInterface::on_spawn_receive(int p_from, const uint8_t *p_b
 
 	// Add and track remote
 	ERR_FAIL_COND_V(!peers_info.has(p_from), ERR_UNAVAILABLE);
-	ERR_FAIL_COND_V(peers_info[p_from].recv_nodes.has(net_id), ERR_ALREADY_IN_USE);
+	NetID nid = NetID(remote_peer, net_id);
+	ERR_FAIL_COND_V(peers_info[p_from].recv_nodes.has(nid), ERR_ALREADY_IN_USE);
 	ObjectID oid = node->get_instance_id();
 	TrackedNode &tobj = _track(oid);
-	tobj.spawner = spawner->get_instance_id();
-	tobj.net_id = net_id;
-	tobj.remote_peer = p_from;
-	peers_info[p_from].recv_nodes[net_id] = oid;
+	_set_net_id(oid, nid);
+	tobj.spawn_argument = spawn_arg;
+	tobj.spawn_scene_id = scene_id;
+	_set_tracked_spawner(tobj, spawner->get_instance_id());
+	peers_info[p_from].recv_nodes[nid] = oid;
 
 	// The initial state will be applied during the sync config (i.e. before _ready).
 	pending_spawn = node->get_instance_id();
@@ -652,24 +704,45 @@ Error SceneReplicationInterface::on_spawn_receive(int p_from, const uint8_t *p_b
 }
 
 Error SceneReplicationInterface::on_despawn_receive(int p_from, const uint8_t *p_buffer, int p_buffer_len) {
-	ERR_FAIL_COND_V_MSG(p_buffer_len < 5, ERR_INVALID_DATA, "Invalid spawn packet received");
+	if (p_buffer[0] & DESPAWN_HAS_REMOTE_PEER_FLAG) {
+		ERR_FAIL_COND_V_MSG(p_buffer_len < 9, ERR_INVALID_DATA, "Invalid spawn packet received");
+	} else {
+		ERR_FAIL_COND_V_MSG(p_buffer_len < 5, ERR_INVALID_DATA, "Invalid spawn packet received");
+	}
 	int ofs = 1; // The spawn/despawn command.
+	uint32_t remote_peer = p_from;
+	if (p_buffer[0] & DESPAWN_HAS_REMOTE_PEER_FLAG) {
+		remote_peer = decode_uint32(&p_buffer[ofs]);
+		ofs += 4;
+		ERR_FAIL_COND_V((int)remote_peer == p_from, ERR_INVALID_DATA);
+		ERR_FAIL_COND_V(remote_peer == 0u, ERR_INVALID_DATA);
+	}
 	uint32_t net_id = decode_uint32(&p_buffer[ofs]);
 	ofs += 4;
 
 	// Untrack remote
 	ERR_FAIL_COND_V(!peers_info.has(p_from), ERR_UNAUTHORIZED);
 	PeerInfo &pinfo = peers_info[p_from];
-	ERR_FAIL_COND_V(!pinfo.recv_nodes.has(net_id), ERR_UNAUTHORIZED);
-	Node *node = get_id_as<Node>(pinfo.recv_nodes[net_id]);
+	NetID nid = NetID(remote_peer, net_id);
+	if (!pinfo.recv_nodes.has(nid)) {
+		if (!known_nodes.has(nid)) {
+			WARN_PRINT(vformat("Received despawn for a node that is untracked: from peer %d, original peer %d, net id %d.", p_from, remote_peer, net_id));
+			return OK;
+		}
+		ERR_FAIL_V(ERR_UNAUTHORIZED);
+	}
+	Node *node = get_id_as<Node>(pinfo.recv_nodes[nid]);
 	ERR_FAIL_NULL_V(node, ERR_BUG);
-	pinfo.recv_nodes.erase(net_id);
+	pinfo.recv_nodes.erase(nid);
 
 	const ObjectID oid = node->get_instance_id();
+	ERR_FAIL_COND_V(!known_nodes.has(nid), ERR_UNAUTHORIZED);
+	ERR_FAIL_COND_V(known_nodes[nid] != oid, ERR_UNAUTHORIZED);
+	known_nodes.erase(nid);
 	ERR_FAIL_COND_V(!tracked_nodes.has(oid), ERR_BUG);
 	MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(tracked_nodes[oid].spawner);
 	ERR_FAIL_NULL_V(spawner, ERR_DOES_NOT_EXIST);
-	ERR_FAIL_COND_V(p_from != spawner->get_multiplayer_authority(), ERR_UNAUTHORIZED);
+	ERR_FAIL_COND_V(p_from != (int)spawner->get_multiplayer_authority(), ERR_UNAUTHORIZED);
 
 	if (node->get_parent() != nullptr) {
 		node->get_parent()->remove_child(node);
@@ -916,4 +989,159 @@ void SceneReplicationInterface::set_max_delta_packet_size(int p_size) {
 
 int SceneReplicationInterface::get_max_delta_packet_size() const {
 	return delta_mtu;
+}
+
+void SceneReplicationInterface::_set_tracked_spawner(TrackedNode &p_tracked, ObjectID p_spawner) {
+	if (p_tracked.spawner == p_spawner) {
+		return;
+	}
+
+	if (p_tracked.spawner.is_valid() && tracked_spawners.has(p_tracked.spawner)) {
+		tracked_spawners[p_tracked.spawner].tracked_nodes.erase(p_tracked.id);
+		if (tracked_spawners[p_tracked.spawner].tracked_nodes.is_empty()) {
+			tracked_spawners.erase(p_tracked.spawner);
+
+			MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_tracked.spawner);
+			if (spawner && spawner->is_connected(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed))) {
+				spawner->disconnect(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed));
+			}
+		}
+	}
+
+	p_tracked.spawner = p_spawner;
+
+	if (p_spawner.is_valid()) {
+		tracked_spawners[p_spawner].tracked_nodes.insert(p_tracked.id);
+
+		MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_tracked.spawner);
+		ERR_FAIL_NULL(spawner);
+		if (!spawner->is_connected(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed))) {
+			spawner->connect(SNAME("authority_changed"), callable_mp(this, &SceneReplicationInterface::_spawner_authority_changed).bind(p_spawner));
+		}
+	}
+}
+
+void SceneReplicationInterface::_spawner_authority_changed(int prev_authority, const ObjectID &p_oid) {
+	MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_oid);
+	ERR_FAIL_NULL(spawner);
+
+	if (prev_authority == multiplayer->get_unique_id()) {
+		ERR_FAIL_COND(!peers_info.has(spawner->get_multiplayer_authority()));
+		_spawner_authority_release(p_oid);
+	} else if (spawner->get_multiplayer_authority() == multiplayer->get_unique_id()) {
+		_spawner_authority_adopt(prev_authority, p_oid);
+	} else {
+		_spawner_authority_move(prev_authority, p_oid);
+	}
+}
+
+void SceneReplicationInterface::_spawner_authority_release(const ObjectID &p_oid) {
+	MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_oid);
+	ERR_FAIL_NULL(spawner);
+	ERR_FAIL_COND(!tracked_spawners.has(p_oid));
+
+	int new_authority = spawner->get_multiplayer_authority();
+	ERR_FAIL_COND(!peers_info.has(new_authority));
+
+	for (const ObjectID &node_oid : tracked_spawners[p_oid].tracked_nodes) {
+		ERR_FAIL_COND_MSG(spawn_queue.has(node_oid), "Cannot release authority while nodes are being spawned.");
+		TrackedNode &tnode = tracked_nodes[node_oid];
+		ERR_CONTINUE(tnode.spawner != p_oid);
+
+		spawned_nodes.erase(node_oid);
+		for (KeyValue<int, PeerInfo> &P : peers_info) {
+			P.value.spawn_nodes.erase(node_oid);
+		}
+		if (tnode.net_id != NetID()) {
+			peers_info[new_authority].recv_nodes.insert(tnode.net_id, node_oid);
+		}
+
+		Node *node = get_id_as<Node>(node_oid);
+		ERR_CONTINUE(!node);
+		spawner->untrack_existing(node);
+	}
+}
+
+void SceneReplicationInterface::_spawner_authority_adopt(int prev_authority, const ObjectID &p_oid) {
+	MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_oid);
+	ERR_FAIL_NULL(spawner);
+	ERR_FAIL_COND(!peers_info.has(prev_authority));
+	ERR_FAIL_COND(!tracked_spawners.has(p_oid));
+
+	for (const ObjectID &node_oid : tracked_spawners[p_oid].tracked_nodes) {
+		TrackedNode &tnode = tracked_nodes[node_oid];
+		ERR_CONTINUE(tnode.spawner != p_oid);
+
+		Node *node = get_id_as<Node>(node_oid);
+		ERR_CONTINUE(!node);
+		spawner->track_existing(node, tnode.spawn_argument, tnode.spawn_scene_id);
+
+		spawned_nodes.insert(node_oid);
+		if (tnode.net_id != NetID()) {
+			peers_info[prev_authority].recv_nodes.erase(tnode.net_id);
+		}
+
+		bool is_visible_to_all = true;
+		for (const ObjectID &sid : tnode.synchronizers) {
+			MultiplayerSynchronizer *sync = get_id_as<MultiplayerSynchronizer>(sid);
+			ERR_CONTINUE(!sync);
+			if (!_has_authority(sync)) {
+				continue;
+			}
+			if (sync->is_visible_to(0)) {
+				is_visible_to_all = true;
+				break;
+			}
+			is_visible_to_all = false;
+		}
+
+		for (KeyValue<int, PeerInfo> &P : peers_info) {
+			bool is_visible_to_peer = is_visible_to_all;
+			if (!is_visible_to_peer) {
+				for (const ObjectID &sid : tnode.synchronizers) {
+					MultiplayerSynchronizer *sync = get_id_as<MultiplayerSynchronizer>(sid);
+					ERR_CONTINUE(!sync);
+					if (_has_authority(sync) && sync->is_visible_to(P.key)) {
+						is_visible_to_peer = true;
+						break;
+					}
+				}
+			}
+
+			if (is_visible_to_peer) {
+				P.value.spawn_nodes.insert(node_oid);
+			}
+		}
+	}
+}
+
+void SceneReplicationInterface::_spawner_authority_move(int prev_authority, const ObjectID &p_oid) {
+	MultiplayerSpawner *spawner = get_id_as<MultiplayerSpawner>(p_oid);
+	ERR_FAIL_NULL(spawner);
+
+	ERR_FAIL_COND(!peers_info.has(prev_authority));
+	ERR_FAIL_COND(!peers_info.has(spawner->get_multiplayer_authority()));
+	ERR_FAIL_COND(!tracked_spawners.has(p_oid));
+
+	int new_authority = spawner->get_multiplayer_authority();
+	for (const ObjectID &node_oid : tracked_spawners[p_oid].tracked_nodes) {
+		TrackedNode &tnode = tracked_nodes[node_oid];
+		ERR_CONTINUE(tnode.spawner != p_oid);
+		if (tnode.net_id == NetID()) {
+			continue;
+		}
+		if (peers_info[prev_authority].recv_nodes.has(tnode.net_id)) {
+			peers_info[new_authority].recv_nodes[tnode.net_id] = peers_info[prev_authority].recv_nodes[tnode.net_id];
+			peers_info[prev_authority].recv_nodes.erase(tnode.net_id);
+		}
+	}
+}
+
+void SceneReplicationInterface::_set_net_id(const ObjectID &p_oid, const NetID &net_id) {
+	ERR_FAIL_COND(!tracked_nodes.has(p_oid));
+	TrackedNode &tnode = tracked_nodes[p_oid];
+	ERR_FAIL_COND(tnode.net_id != NetID());
+	tnode.net_id = net_id;
+	ERR_FAIL_COND(known_nodes.has(net_id));
+	known_nodes[net_id] = p_oid;
 }

@@ -112,5 +112,10 @@ public:
 	Node *instantiate_custom(const Variant &p_data);
 	Node *instantiate_scene(int p_idx);
 
+	virtual void set_multiplayer_authority(int p_peer_id, bool p_recursive = true) override;
+
+	void track_existing(Node *p_node, const Variant &p_argument, int p_scene_id = INVALID_ID);
+	void untrack_existing(Node *p_node);
+
 	MultiplayerSpawner() {}
 };

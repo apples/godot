@@ -60,6 +60,12 @@
 		</member>
 	</members>
 	<signals>
+		<signal name="authority_changed">
+			<param index="0" name="prev_authority" type="int" />
+			<description>
+				Emitted when the spawner's authority is changed via [method Node.set_multiplayer_authority].
+			</description>
+		</signal>
 		<signal name="despawned">
 			<param index="0" name="node" type="Node" />
 			<description>

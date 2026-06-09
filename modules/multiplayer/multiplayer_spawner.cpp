@@ -34,6 +34,7 @@
 #include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
+#include "core/string/string_name.h"
 #include "scene/main/multiplayer_api.h"
 
 #ifdef TOOLS_ENABLED
@@ -180,6 +181,7 @@ void MultiplayerSpawner::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("despawned", PropertyInfo(Variant::OBJECT, "node", PROPERTY_HINT_RESOURCE_TYPE, Node::get_class_static())));
 	ADD_SIGNAL(MethodInfo("spawned", PropertyInfo(Variant::OBJECT, "node", PROPERTY_HINT_RESOURCE_TYPE, Node::get_class_static())));
+	ADD_SIGNAL(MethodInfo("authority_changed", PropertyInfo(Variant::INT, "prev_authority")));
 }
 
 void MultiplayerSpawner::_update_spawn_node() {
@@ -333,4 +335,34 @@ Node *MultiplayerSpawner::spawn(const Variant &p_data) {
 	_track(node, p_data);
 	parent->add_child(node, true);
 	return node;
+}
+
+void MultiplayerSpawner::set_multiplayer_authority(int p_peer_id, bool p_recursive) {
+	if (get_multiplayer_authority() == p_peer_id) {
+		return;
+	}
+	int prev_authority = get_multiplayer_authority();
+	Node::set_multiplayer_authority(p_peer_id, p_recursive);
+	emit_signal(SNAME("authority_changed"), prev_authority);
+}
+
+void MultiplayerSpawner::track_existing(Node *p_node, const Variant &p_argument, int p_scene_id) {
+	ERR_FAIL_NULL(p_node);
+	ObjectID oid = p_node->get_instance_id();
+	if (!tracked_nodes.has(oid)) {
+		tracked_nodes[oid] = SpawnInfo(p_argument.duplicate(true), p_scene_id);
+		p_node->connect(SceneStringName(tree_exiting), callable_mp(this, &MultiplayerSpawner::_node_exit).bind(p_node->get_instance_id()), CONNECT_ONE_SHOT);
+	}
+}
+
+void MultiplayerSpawner::untrack_existing(Node *p_node) {
+	ERR_FAIL_NULL(p_node);
+	ObjectID oid = p_node->get_instance_id();
+	if (tracked_nodes.has(oid)) {
+		tracked_nodes.erase(oid);
+		Callable node_exit = callable_mp(this, &MultiplayerSpawner::_node_exit);
+		if (p_node->is_connected(SceneStringName(tree_exiting), node_exit)) {
+			p_node->disconnect(SceneStringName(tree_exiting), node_exit);
+		}
+	}
 }
