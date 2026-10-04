@@ -22,6 +22,13 @@
 			<param index="6" name="use_filler_clip" type="bool" default="false" />
 			<param index="7" name="filler_clip" type="int" default="-1" />
 			<param index="8" name="hold_previous" type="bool" default="false" />
+			<param index="9" name="to_cue_timing" type="int" enum="AudioStreamInteractive.TransitionToCueTiming" default="0" />
+			<param index="10" name="fade_offset_beats" type="float" default="0.0" />
+			<param index="11" name="fade_ease_exp" type="float" default="0.0" />
+			<param index="12" name="to_fade_beats" type="float" default="0.0" />
+			<param index="13" name="to_fade_offset_beats" type="float" default="0.0" />
+			<param index="14" name="to_fade_ease_exp" type="float" default="0.0" />
+			<param index="15" name="filler_clip_offset_beats" type="float" default="0.0" />
 			<description>
 				Add a transition between two clips. Provide the indices of the source and destination clips, or use the [constant CLIP_ANY] constant to indicate that transition happens to/from any clip to this one.
 				* [param from_time] indicates the moment in the current clip the transition will begin after triggered.
@@ -77,6 +84,13 @@
 				Return the time (in beats) for a transition (see [method add_transition]).
 			</description>
 		</method>
+		<method name="get_transition_fade_ease_exp" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
+			</description>
+		</method>
 		<method name="get_transition_fade_mode" qualifiers="const">
 			<return type="int" enum="AudioStreamInteractive.FadeMode" />
 			<param index="0" name="from_clip" type="int" />
@@ -85,12 +99,26 @@
 				Return the mode for a transition (see [method add_transition]).
 			</description>
 		</method>
+		<method name="get_transition_fade_offset_beats" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
+			</description>
+		</method>
 		<method name="get_transition_filler_clip" qualifiers="const">
 			<return type="int" />
 			<param index="0" name="from_clip" type="int" />
 			<param index="1" name="to_clip" type="int" />
 			<description>
 				Return the filler clip for a transition (see [method add_transition]).
+			</description>
+		</method>
+		<method name="get_transition_filler_clip_offset_beats" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
 			</description>
 		</method>
 		<method name="get_transition_from_time" qualifiers="const">
@@ -105,6 +133,34 @@
 			<return type="PackedInt32Array" />
 			<description>
 				Return the list of transitions (from, to interleaved).
+			</description>
+		</method>
+		<method name="get_transition_to_cue_timing" qualifiers="const">
+			<return type="int" enum="AudioStreamInteractive.TransitionToCueTiming" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_transition_to_fade_beats" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_transition_to_fade_ease_exp" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_transition_to_fade_offset_beats" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="from_clip" type="int" />
+			<param index="1" name="to_clip" type="int" />
+			<description>
 			</description>
 		</method>
 		<method name="get_transition_to_time" qualifiers="const">
@@ -225,6 +281,14 @@
 		</constant>
 		<constant name="AUTO_ADVANCE_RETURN_TO_HOLD" value="2" enum="AutoAdvanceMode">
 			Enable auto-advance, but instead of specifying a clip, the playback will return to hold (see [method add_transition]).
+		</constant>
+		<constant name="TRANSITION_TO_CUE_TIMING_DEFAULT" value="0" enum="TransitionToCueTiming">
+		</constant>
+		<constant name="TRANSITION_TO_CUE_TIMING_AFTER_FILLER" value="1" enum="TransitionToCueTiming">
+		</constant>
+		<constant name="TRANSITION_TO_CUE_TIMING_AFTER_FADE_OUT" value="2" enum="TransitionToCueTiming">
+		</constant>
+		<constant name="TRANSITION_TO_CUE_TIMING_IMMEDIATE" value="3" enum="TransitionToCueTiming">
 		</constant>
 		<constant name="CLIP_ANY" value="-1">
 			This constant describes that any clip is valid for a specific transition as either source or destination.

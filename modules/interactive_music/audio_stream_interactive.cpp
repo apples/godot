@@ -31,10 +31,173 @@
 #include "audio_stream_interactive.h"
 
 #include "core/config/engine.h"
+#include "core/error/error_macros.h"
 #include "core/math/math_funcs.h"
 #include "core/object/class_db.h"
+#include "core/string/print_string.h"
+#include "core/variant/variant.h"
 #include "servers/audio/audio_driver.h"
 #include "servers/audio/audio_server.h"
+
+AudioStreamInteractive::TransitionMixResult AudioStreamInteractive::compute_mix(const Transition &transition, float current_pos, const Ref<AudioStream> &from_stream, const Ref<AudioStream> &to_stream, const Ref<AudioStream> &filler_stream, bool p_is_auto_advance) {
+	TransitionMixResult result;
+
+	FadeMode fade_mode = transition.fade_mode;
+
+	if (fade_mode == AudioStreamInteractive::FADE_AUTOMATIC) {
+		// Adjust automatic mode based on context.
+		if (transition.to_time == AudioStreamInteractive::TRANSITION_TO_TIME_START) {
+			fade_mode = AudioStreamInteractive::FADE_OUT;
+		} else {
+			fade_mode = AudioStreamInteractive::FADE_CROSS;
+		}
+	}
+
+	TransitionFromTime from_time = p_is_auto_advance ? TRANSITION_FROM_TIME_END : transition.from_time;
+
+	// Prepare the fadeout
+
+	double transition_start_t = 0;
+	double fade_speed = 0;
+	bool src_no_loop = false;
+
+	// Check if source stream has BPM, if so, transition syncs to BPM.
+	double beat_sec = from_stream.is_valid() && from_stream->get_bpm() ? 60.0 / from_stream->get_bpm() : 1.0;
+	double to_beat_sec = to_stream.is_valid() && to_stream->get_bpm() ? 60.0 / to_stream->get_bpm() : 1.0;
+
+	result.from_beat_sec = beat_sec;
+	result.to_beat_sec = to_beat_sec;
+
+	if (from_stream.is_valid() && from_stream->get_bpm()) {
+		switch (from_time) {
+			case AudioStreamInteractive::TRANSITION_FROM_TIME_IMMEDIATE: {
+				transition_start_t = 0;
+			} break;
+			case AudioStreamInteractive::TRANSITION_FROM_TIME_NEXT_BEAT: {
+				double remainder = Math::fmod(double(current_pos), beat_sec);
+				transition_start_t = beat_sec - remainder;
+			} break;
+			case AudioStreamInteractive::TRANSITION_FROM_TIME_NEXT_BAR: {
+				if (from_stream->get_bar_beats() > 0) {
+					double bar_sec = beat_sec * from_stream->get_bar_beats();
+					double remainder = Math::fmod(double(current_pos), bar_sec);
+					transition_start_t = bar_sec - remainder;
+				} else {
+					// Stream does not have a number of beats per bar - avoid NaN, and play immediately.
+					transition_start_t = 0;
+				}
+			} break;
+			case AudioStreamInteractive::TRANSITION_FROM_TIME_END: {
+				double end = from_stream->get_beat_count() > 0 ? from_stream->get_beat_count() * beat_sec : from_stream->get_length();
+				if (end == 0.0) {
+					// Stream does not have a length.
+					transition_start_t = 0;
+				} else {
+					transition_start_t = end - current_pos;
+				}
+
+				if (!from_stream->has_loop()) {
+					src_no_loop = true;
+				}
+
+			} break;
+			default: {
+			}
+		}
+	} else {
+		// Source has no BPM, so just simple transition.
+		if (from_time == AudioStreamInteractive::TRANSITION_FROM_TIME_END && from_stream.is_valid() && from_stream->get_length() > 0) {
+			double end = from_stream->get_length();
+			transition_start_t = end - current_pos;
+			if (!from_stream->has_loop()) {
+				src_no_loop = true;
+			}
+		} else {
+			transition_start_t = 0;
+		}
+	}
+
+	result.start_t = transition_start_t;
+
+	// Fade speed also aligned to BPM.
+	fade_speed = 1.0 / (transition.fade_beats * beat_sec);
+
+	if (fade_mode == AudioStreamInteractive::FADE_DISABLED || fade_mode == AudioStreamInteractive::FADE_IN) {
+		if (src_no_loop) {
+			// If there is no fade in the source stream, then let it continue until it ends.
+			result.from_fade_start_t = 0;
+			result.from_fade_speed = 0;
+			result.from_fade_ease_exp = 0.0;
+		} else {
+			// Otherwise force a very quick fade to avoid clicks
+			result.from_fade_start_t = MAX(transition_start_t + transition.fade_offset_beats * beat_sec, 0.0);
+			result.from_fade_speed = 1.0 / -0.001;
+			result.from_fade_ease_exp = 0.0;
+		}
+	} else {
+		// Regular fade.
+		result.from_fade_start_t = MAX(transition_start_t + transition.fade_offset_beats * beat_sec, 0.0);
+		result.from_fade_speed = -fade_speed;
+		result.from_fade_ease_exp = transition.fade_ease_exp;
+	}
+
+	result.from_end_t = result.from_fade_speed != 0.0 ? result.from_fade_start_t + 1.0 / -result.from_fade_speed : result.from_fade_start_t;
+
+	double filler_length = 0.0;
+	TransitionToCueTiming to_cue_timing = transition.to_cue_timing;
+
+	if (filler_stream.is_valid()) {
+		result.filler_start_t = MAX(transition_start_t + transition.filler_clip_offset_beats * beat_sec, 0.0);
+
+		if (filler_stream->get_bpm() > 0 && filler_stream->get_beat_count() > 0) {
+			double filler_beat_sec = 60.0 / filler_stream->get_bpm();
+			filler_length = filler_beat_sec * filler_stream->get_beat_count();
+		} else {
+			filler_length = filler_stream->get_length();
+		}
+
+		result.filler_end_t = result.filler_start_t + filler_length;
+		result.filler_tail_end_t = result.filler_start_t + filler_stream->get_length();
+
+		if (to_cue_timing == AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_DEFAULT) {
+			to_cue_timing = AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_AFTER_FILLER;
+		}
+	} else {
+		if (to_cue_timing == AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_DEFAULT) {
+			to_cue_timing = AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_IMMEDIATE;
+		}
+	}
+
+	switch (to_cue_timing) {
+		case AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_AFTER_FILLER:
+			result.to_start_t = MAX(result.filler_end_t + transition.to_fade_offset_beats * to_beat_sec, 0.0);
+			break;
+		case AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_AFTER_FADE_OUT:
+			result.to_start_t = MAX(result.from_end_t + transition.to_fade_offset_beats * to_beat_sec, 0.0);
+			break;
+		case AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_IMMEDIATE:
+			result.to_start_t = MAX(transition_start_t + transition.to_fade_offset_beats * to_beat_sec, 0.0);
+			break;
+		case AudioStreamInteractive::TRANSITION_TO_CUE_TIMING_DEFAULT:
+			ERR_PRINT("Bug: to_cue_timing default not reassigned.");
+			result.to_start_t = MAX(transition_start_t + transition.to_fade_offset_beats * to_beat_sec, 0.0);
+			break;
+	}
+
+	if (fade_mode == AudioStreamInteractive::FADE_DISABLED || fade_mode == AudioStreamInteractive::FADE_OUT) {
+		// No fading, immediately start at full volume.
+		result.to_fade_speed = 0.0;
+		result.to_fade_ease_exp = 0.0;
+	} else {
+		// Fade enable, prepare fade.
+		result.to_fade_speed = transition.to_fade_beats > 0.0 ? 1.0 / (transition.to_fade_beats * to_beat_sec) : fade_speed;
+		result.to_fade_ease_exp = transition.to_fade_ease_exp;
+	}
+
+	result.to_fade_end_t = result.to_fade_speed != 0.0 ? result.to_start_t + 1.0 / result.to_fade_speed : result.to_start_t;
+
+	return result;
+}
 
 AudioStreamInteractive::AudioStreamInteractive() {
 }
@@ -82,11 +245,13 @@ void AudioStreamInteractive::set_clip_count(int p_count) {
 
 	notify_property_list_changed();
 	emit_signal(SNAME("parameter_list_changed"));
+	emit_changed();
 }
 
 void AudioStreamInteractive::set_initial_clip(int p_clip) {
 	ERR_FAIL_INDEX(p_clip, clip_count);
 	initial_clip = p_clip;
+	emit_changed();
 }
 
 int AudioStreamInteractive::get_initial_clip() const {
@@ -100,6 +265,7 @@ int AudioStreamInteractive::get_clip_count() const {
 void AudioStreamInteractive::set_clip_name(int p_clip, const StringName &p_name) {
 	ERR_FAIL_INDEX(p_clip, MAX_CLIPS);
 	clips[p_clip].name = p_name;
+	emit_changed();
 }
 
 StringName AudioStreamInteractive::get_clip_name(int p_clip) const {
@@ -141,6 +307,8 @@ void AudioStreamInteractive::set_clip_stream(int p_clip, const Ref<AudioStream> 
 	notify_property_list_changed(); // Hints change if stream changes.
 	emit_signal(SNAME("parameter_list_changed"));
 #endif
+
+	emit_changed();
 }
 
 Ref<AudioStream> AudioStreamInteractive::get_clip_stream(int p_clip) const {
@@ -153,6 +321,7 @@ void AudioStreamInteractive::set_clip_auto_advance(int p_clip, AutoAdvanceMode p
 	ERR_FAIL_INDEX(p_mode, 3);
 	clips[p_clip].auto_advance = p_mode;
 	notify_property_list_changed();
+	emit_changed();
 }
 
 AudioStreamInteractive::AutoAdvanceMode AudioStreamInteractive::get_clip_auto_advance(int p_clip) const {
@@ -163,6 +332,7 @@ AudioStreamInteractive::AutoAdvanceMode AudioStreamInteractive::get_clip_auto_ad
 void AudioStreamInteractive::set_clip_auto_advance_next_clip(int p_clip, int p_index) {
 	ERR_FAIL_INDEX(p_clip, MAX_CLIPS);
 	clips[p_clip].auto_advance_next_clip = p_index;
+	emit_changed();
 }
 
 int AudioStreamInteractive::get_clip_auto_advance_next_clip(int p_clip) const {
@@ -173,6 +343,8 @@ int AudioStreamInteractive::get_clip_auto_advance_next_clip(int p_clip) const {
 // TRANSITIONS
 
 void AudioStreamInteractive::_set_transitions(const Dictionary &p_transitions) {
+	_block_emit_changed();
+
 	for (const KeyValue<Variant, Variant> &kv : p_transitions) {
 		Vector2i k = kv.key;
 		Dictionary data = kv.value;
@@ -182,14 +354,26 @@ void AudioStreamInteractive::_set_transitions(const Dictionary &p_transitions) {
 		ERR_CONTINUE(!data.has("fade_beats"));
 		bool use_filler_clip = false;
 		int filler_clip = 0;
+		float filler_clip_offset_beats = 0.0;
 		if (data.has("use_filler_clip") && data.has("filler_clip")) {
 			use_filler_clip = data["use_filler_clip"];
 			filler_clip = data["filler_clip"];
+			if (data.has("filler_clip_offset_beats")) {
+				filler_clip_offset_beats = float(data["filler_clip_offset_beats"]);
+			}
 		}
 		bool hold_previous = data.has("hold_previous") ? bool(data["hold_previous"]) : false;
+		TransitionToCueTiming to_cue_timing = data.has("to_cue_timing") ? TransitionToCueTiming(int(data["to_cue_timing"])) : TRANSITION_TO_CUE_TIMING_DEFAULT;
+		float fade_offset_beats = data.has("fade_offset_beats") ? float(data["fade_offset_beats"]) : 0.0;
+		float fade_ease_exp = data.has("fade_ease_exp") ? float(data["fade_ease_exp"]) : 0.0;
+		float to_fade_beats = data.has("to_fade_beats") ? float(data["to_fade_beats"]) : 0.0;
+		float to_fade_offset_beats = data.has("to_fade_offset_beats") ? float(data["to_fade_offset_beats"]) : 0.0;
+		float to_fade_ease_exp = data.has("to_fade_ease_exp") ? float(data["to_fade_ease_exp"]) : 0.0;
 
-		add_transition(k.x, k.y, TransitionFromTime(int(data["from_time"])), TransitionToTime(int(data["to_time"])), FadeMode(int(data["fade_mode"])), data["fade_beats"], use_filler_clip, filler_clip, hold_previous);
+		add_transition(k.x, k.y, TransitionFromTime(int(data["from_time"])), TransitionToTime(int(data["to_time"])), FadeMode(int(data["fade_mode"])), data["fade_beats"], use_filler_clip, filler_clip, hold_previous, to_cue_timing, fade_offset_beats, fade_ease_exp, to_fade_beats, to_fade_offset_beats, to_fade_ease_exp, filler_clip_offset_beats);
 	}
+
+	_unblock_emit_changed();
 }
 
 Dictionary AudioStreamInteractive::_get_transitions() const {
@@ -210,9 +394,30 @@ Dictionary AudioStreamInteractive::_get_transitions() const {
 		if (tr.use_filler_clip) {
 			data["use_filler_clip"] = true;
 			data["filler_clip"] = tr.filler_clip;
+			if (tr.filler_clip_offset_beats != 0.0) {
+				data["filler_clip_offset_beats"] = tr.filler_clip_offset_beats;
+			}
 		}
 		if (tr.hold_previous) {
 			data["hold_previous"] = true;
+		}
+		if (tr.to_cue_timing != TRANSITION_TO_CUE_TIMING_DEFAULT) {
+			data["to_cue_timing"] = tr.to_cue_timing;
+		}
+		if (tr.fade_offset_beats != 0.0) {
+			data["fade_offset_beats"] = tr.fade_offset_beats;
+		}
+		if (tr.fade_ease_exp != 0.0) {
+			data["fade_ease_exp"] = tr.fade_ease_exp;
+		}
+		if (tr.to_fade_beats != 0.0) {
+			data["to_fade_beats"] = tr.to_fade_beats;
+		}
+		if (tr.to_fade_offset_beats != 0.0) {
+			data["to_fade_offset_beats"] = tr.to_fade_offset_beats;
+		}
+		if (tr.to_fade_ease_exp != 0.0) {
+			data["to_fade_ease_exp"] = tr.to_fade_ease_exp;
 		}
 
 		ret[keys[i]] = data;
@@ -231,6 +436,7 @@ void AudioStreamInteractive::erase_transition(int p_from_clip, int p_to_clip) {
 	AudioDriver::get_singleton()->lock();
 	transition_map.erase(tk);
 	AudioDriver::get_singleton()->unlock();
+	emit_changed();
 }
 
 PackedInt32Array AudioStreamInteractive::get_transition_list() const {
@@ -243,7 +449,41 @@ PackedInt32Array AudioStreamInteractive::get_transition_list() const {
 	return ret;
 }
 
-void AudioStreamInteractive::add_transition(int p_from_clip, int p_to_clip, TransitionFromTime p_from_time, TransitionToTime p_to_time, FadeMode p_fade_mode, float p_fade_beats, bool p_use_filler_flip, int p_filler_clip, bool p_hold_previous) {
+AudioStreamInteractive::TransitionMixResult AudioStreamInteractive::mix_transition(int p_from_clip, int p_to_clip, float from_pos, bool p_is_auto_advance) const {
+	ERR_FAIL_COND_V(p_from_clip < -1 || p_from_clip >= clip_count, TransitionMixResult());
+	ERR_FAIL_COND_V(p_to_clip < -1 || p_to_clip >= clip_count, TransitionMixResult());
+
+	Transition transition; // Use an empty transition by default
+
+	TransitionKey tkeys[4] = {
+		TransitionKey(p_from_clip, p_to_clip),
+		TransitionKey(p_from_clip, AudioStreamInteractive::CLIP_ANY),
+		TransitionKey(AudioStreamInteractive::CLIP_ANY, p_to_clip),
+		TransitionKey(AudioStreamInteractive::CLIP_ANY, AudioStreamInteractive::CLIP_ANY)
+	};
+
+	for (int i = 0; i < 4; i++) {
+		if (transition_map.has(tkeys[i])) {
+			transition = transition_map[tkeys[i]];
+			break;
+		}
+	}
+
+	Ref<AudioStream> from_stream = p_from_clip == AudioStreamInteractive::CLIP_ANY ? nullptr : clips[p_from_clip].stream;
+	Ref<AudioStream> to_stream = p_to_clip == AudioStreamInteractive::CLIP_ANY ? nullptr : clips[p_to_clip].stream;
+
+	Ref<AudioStream> filler_stream = transition.use_filler_clip && transition.filler_clip >= 0 && transition.filler_clip < clip_count && p_from_clip != transition.filler_clip && p_to_clip != transition.filler_clip ? clips[transition.filler_clip].stream : nullptr;
+
+	return AudioStreamInteractive::compute_mix(transition, from_pos, from_stream, to_stream, filler_stream, p_is_auto_advance);
+}
+
+void AudioStreamInteractive::add_transition(
+		int p_from_clip, int p_to_clip, TransitionFromTime p_from_time, TransitionToTime p_to_time, FadeMode p_fade_mode, float p_fade_beats,
+		bool p_use_filler_flip, int p_filler_clip, bool p_hold_previous,
+		TransitionToCueTiming p_to_cue_timing,
+		float p_fade_offset_beats, float p_fade_ease_exp,
+		float p_to_fade_beats, float p_to_fade_offset_beats, float p_to_fade_ease_exp,
+		float p_filler_clip_offset_beats) {
 	ERR_FAIL_COND(p_from_clip < CLIP_ANY || p_from_clip >= clip_count);
 	ERR_FAIL_COND(p_to_clip < CLIP_ANY || p_to_clip >= clip_count);
 	ERR_FAIL_UNSIGNED_INDEX(p_from_time, TRANSITION_FROM_TIME_MAX);
@@ -258,12 +498,21 @@ void AudioStreamInteractive::add_transition(int p_from_clip, int p_to_clip, Tran
 	tr.use_filler_clip = p_use_filler_flip;
 	tr.filler_clip = p_filler_clip;
 	tr.hold_previous = p_hold_previous;
+	tr.to_cue_timing = p_to_cue_timing;
+	tr.fade_offset_beats = p_fade_offset_beats;
+	tr.fade_ease_exp = p_fade_ease_exp;
+	tr.to_fade_beats = p_to_fade_beats;
+	tr.to_fade_offset_beats = p_to_fade_offset_beats;
+	tr.to_fade_ease_exp = p_to_fade_ease_exp;
+	tr.filler_clip_offset_beats = p_filler_clip_offset_beats;
 
 	TransitionKey tk(p_from_clip, p_to_clip);
 
 	AudioDriver::get_singleton()->lock();
 	transition_map[tk] = tr;
 	AudioDriver::get_singleton()->unlock();
+
+	emit_changed();
 }
 
 AudioStreamInteractive::TransitionFromTime AudioStreamInteractive::get_transition_from_time(int p_from_clip, int p_to_clip) const {
@@ -306,6 +555,48 @@ bool AudioStreamInteractive::is_transition_holding_previous(int p_from_clip, int
 	TransitionKey tk(p_from_clip, p_to_clip);
 	ERR_FAIL_COND_V(!transition_map.has(tk), false);
 	return transition_map[tk].hold_previous;
+}
+
+AudioStreamInteractive::TransitionToCueTiming AudioStreamInteractive::get_transition_to_cue_timing(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), TRANSITION_TO_CUE_TIMING_DEFAULT);
+	return transition_map[tk].to_cue_timing;
+}
+
+float AudioStreamInteractive::get_transition_fade_offset_beats(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].fade_offset_beats;
+}
+
+float AudioStreamInteractive::get_transition_fade_ease_exp(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].fade_ease_exp;
+}
+
+float AudioStreamInteractive::get_transition_to_fade_beats(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].to_fade_beats;
+}
+
+float AudioStreamInteractive::get_transition_to_fade_offset_beats(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].to_fade_offset_beats;
+}
+
+float AudioStreamInteractive::get_transition_to_fade_ease_exp(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].to_fade_ease_exp;
+}
+
+float AudioStreamInteractive::get_transition_filler_clip_offset_beats(int p_from_clip, int p_to_clip) const {
+	TransitionKey tk(p_from_clip, p_to_clip);
+	ERR_FAIL_COND_V(!transition_map.has(tk), 0.0);
+	return transition_map[tk].filler_clip_offset_beats;
 }
 
 #ifdef TOOLS_ENABLED
@@ -384,6 +675,7 @@ void AudioStreamInteractive::_inspector_array_swap_clip(uint32_t p_item_a, uint3
 
 	notify_property_list_changed();
 	emit_signal(SNAME("parameter_list_changed"));
+	emit_changed();
 }
 
 String AudioStreamInteractive::_get_streams_hint() const {
@@ -499,7 +791,7 @@ void AudioStreamInteractive::_bind_methods() {
 
 	// TRANSITIONS
 
-	ClassDB::bind_method(D_METHOD("add_transition", "from_clip", "to_clip", "from_time", "to_time", "fade_mode", "fade_beats", "use_filler_clip", "filler_clip", "hold_previous"), &AudioStreamInteractive::add_transition, DEFVAL(false), DEFVAL(-1), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("add_transition", "from_clip", "to_clip", "from_time", "to_time", "fade_mode", "fade_beats", "use_filler_clip", "filler_clip", "hold_previous", "to_cue_timing", "fade_offset_beats", "fade_ease_exp", "to_fade_beats", "to_fade_offset_beats", "to_fade_ease_exp", "filler_clip_offset_beats"), &AudioStreamInteractive::add_transition, DEFVAL(false), DEFVAL(-1), DEFVAL(false), DEFVAL(TRANSITION_TO_CUE_TIMING_DEFAULT), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0));
 	ClassDB::bind_method(D_METHOD("has_transition", "from_clip", "to_clip"), &AudioStreamInteractive::has_transition);
 	ClassDB::bind_method(D_METHOD("erase_transition", "from_clip", "to_clip"), &AudioStreamInteractive::erase_transition);
 	ClassDB::bind_method(D_METHOD("get_transition_list"), &AudioStreamInteractive::get_transition_list);
@@ -511,6 +803,13 @@ void AudioStreamInteractive::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_transition_using_filler_clip", "from_clip", "to_clip"), &AudioStreamInteractive::is_transition_using_filler_clip);
 	ClassDB::bind_method(D_METHOD("get_transition_filler_clip", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_filler_clip);
 	ClassDB::bind_method(D_METHOD("is_transition_holding_previous", "from_clip", "to_clip"), &AudioStreamInteractive::is_transition_holding_previous);
+	ClassDB::bind_method(D_METHOD("get_transition_to_cue_timing", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_to_cue_timing);
+	ClassDB::bind_method(D_METHOD("get_transition_fade_offset_beats", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_fade_offset_beats);
+	ClassDB::bind_method(D_METHOD("get_transition_fade_ease_exp", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_fade_ease_exp);
+	ClassDB::bind_method(D_METHOD("get_transition_to_fade_beats", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_to_fade_beats);
+	ClassDB::bind_method(D_METHOD("get_transition_to_fade_offset_beats", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_to_fade_offset_beats);
+	ClassDB::bind_method(D_METHOD("get_transition_to_fade_ease_exp", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_to_fade_ease_exp);
+	ClassDB::bind_method(D_METHOD("get_transition_filler_clip_offset_beats", "from_clip", "to_clip"), &AudioStreamInteractive::get_transition_filler_clip_offset_beats);
 
 	ClassDB::bind_method(D_METHOD("_set_transitions", "transitions"), &AudioStreamInteractive::_set_transitions);
 	ClassDB::bind_method(D_METHOD("_get_transitions"), &AudioStreamInteractive::_get_transitions);
@@ -535,6 +834,11 @@ void AudioStreamInteractive::_bind_methods() {
 	BIND_ENUM_CONSTANT(AUTO_ADVANCE_DISABLED);
 	BIND_ENUM_CONSTANT(AUTO_ADVANCE_ENABLED);
 	BIND_ENUM_CONSTANT(AUTO_ADVANCE_RETURN_TO_HOLD);
+
+	BIND_ENUM_CONSTANT(TRANSITION_TO_CUE_TIMING_DEFAULT);
+	BIND_ENUM_CONSTANT(TRANSITION_TO_CUE_TIMING_AFTER_FILLER);
+	BIND_ENUM_CONSTANT(TRANSITION_TO_CUE_TIMING_AFTER_FADE_OUT);
+	BIND_ENUM_CONSTANT(TRANSITION_TO_CUE_TIMING_IMMEDIATE);
 
 	BIND_CONSTANT(CLIP_ANY);
 }
@@ -570,6 +874,10 @@ void AudioStreamPlaybackInteractive::stop() {
 }
 
 void AudioStreamPlaybackInteractive::start(double p_from_pos) {
+	start_clip(stream->initial_clip, 0.0);
+}
+
+void AudioStreamPlaybackInteractive::start_clip(int p_clip, double p_from_pos) {
 	if (active) {
 		stop();
 	}
@@ -592,16 +900,35 @@ void AudioStreamPlaybackInteractive::start(double p_from_pos) {
 		version = stream->version;
 	}
 
-	int current = stream->initial_clip;
-	if (current < 0 || current >= stream->clip_count) {
+	if (p_clip < 0 || p_clip >= stream->clip_count) {
 		return; // No playback possible.
 	}
-	if (states[current].playback.is_null()) {
+	if (states[p_clip].playback.is_null()) {
 		return; //no playback possible
 	}
 	active = true;
 
-	_queue(current, false);
+	playback_time = 0.0;
+
+	_start_clip(p_clip, p_from_pos);
+}
+
+void AudioStreamPlaybackInteractive::_start_clip(int p_clip, double p_from_pos) {
+	State &state = states[p_clip];
+	state.active = true;
+	state.fade_wait = 0;
+	state.fade_volume = 1.0;
+	state.fade_speed = 0;
+	state.first_mix = true;
+
+	state.playback->start(p_from_pos);
+
+	playback_current = p_clip;
+
+	if (stream->clips[p_clip].auto_advance == AudioStreamInteractive::AUTO_ADVANCE_ENABLED && stream->clips[p_clip].auto_advance_next_clip >= 0 && stream->clips[p_clip].auto_advance_next_clip < stream->clip_count && stream->clips[p_clip].auto_advance_next_clip != p_clip) {
+		//prepare auto advance
+		state.auto_advance = stream->clips[p_clip].auto_advance_next_clip;
+	}
 }
 
 void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_advance) {
@@ -610,22 +937,7 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 
 	if (playback_current == -1) {
 		// Nothing to do, start.
-		int current = p_to_clip_index;
-		State &state = states[current];
-		state.active = true;
-		state.fade_wait = 0;
-		state.fade_volume = 1.0;
-		state.fade_speed = 0;
-		state.first_mix = true;
-
-		state.playback->start(0);
-
-		playback_current = current;
-
-		if (stream->clips[current].auto_advance == AudioStreamInteractive::AUTO_ADVANCE_ENABLED && stream->clips[current].auto_advance_next_clip >= 0 && stream->clips[current].auto_advance_next_clip < stream->clip_count && stream->clips[current].auto_advance_next_clip != current) {
-			//prepare auto advance
-			state.auto_advance = stream->clips[current].auto_advance_next_clip;
-		}
+		_start_clip(p_to_clip_index, 0.0);
 		return;
 	}
 
@@ -659,14 +971,11 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 		}
 	}
 
-	if (transition.fade_mode == AudioStreamInteractive::FADE_AUTOMATIC) {
-		// Adjust automatic mode based on context.
-		if (transition.to_time == AudioStreamInteractive::TRANSITION_TO_TIME_START) {
-			transition.fade_mode = AudioStreamInteractive::FADE_OUT;
-		} else {
-			transition.fade_mode = AudioStreamInteractive::FADE_CROSS;
-		}
-	}
+	float current_pos = from_state.playback->get_playback_position();
+
+	bool has_filler_clip = transition.use_filler_clip && transition.filler_clip >= 0 && transition.filler_clip < (int)stream->clip_count && states[transition.filler_clip].playback.is_valid() && playback_current != transition.filler_clip && p_to_clip_index != transition.filler_clip;
+
+	AudioStreamInteractive::TransitionMixResult mix = AudioStreamInteractive::compute_mix(transition, current_pos, from_state.stream, to_state.stream, has_filler_clip ? states[transition.filler_clip].stream : nullptr, p_is_auto_advance);
 
 	if (p_is_auto_advance) {
 		transition.from_time = AudioStreamInteractive::TRANSITION_FROM_TIME_END;
@@ -675,77 +984,15 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 		}
 	}
 
-	// Prepare the fadeout
-	float current_pos = from_state.playback->get_playback_position();
-
-	float src_fade_wait = 0;
 	float dst_seek_to = 0;
-	float fade_speed = 0;
-	bool src_no_loop = false;
-
-	if (from_state.stream->get_bpm()) {
-		// Check if source speed has BPM, if so, transition syncs to BPM
-		float beat_sec = 60 / float(from_state.stream->get_bpm());
-		switch (transition.from_time) {
-			case AudioStreamInteractive::TRANSITION_FROM_TIME_IMMEDIATE: {
-				src_fade_wait = 0;
-			} break;
-			case AudioStreamInteractive::TRANSITION_FROM_TIME_NEXT_BEAT: {
-				float remainder = Math::fmod(current_pos, beat_sec);
-				src_fade_wait = beat_sec - remainder;
-			} break;
-			case AudioStreamInteractive::TRANSITION_FROM_TIME_NEXT_BAR: {
-				if (from_state.stream->get_bar_beats() > 0) {
-					float bar_sec = beat_sec * from_state.stream->get_bar_beats();
-					float remainder = Math::fmod(current_pos, bar_sec);
-					src_fade_wait = bar_sec - remainder;
-				} else {
-					// Stream does not have a number of beats per bar - avoid NaN, and play immediately.
-					src_fade_wait = 0;
-				}
-			} break;
-			case AudioStreamInteractive::TRANSITION_FROM_TIME_END: {
-				float end = from_state.stream->get_beat_count() > 0 ? float(from_state.stream->get_beat_count() * beat_sec) : from_state.stream->get_length();
-				if (end == 0) {
-					// Stream does not have a length.
-					src_fade_wait = 0;
-				} else {
-					src_fade_wait = end - current_pos;
-				}
-
-				if (!from_state.stream->has_loop()) {
-					src_no_loop = true;
-				}
-
-			} break;
-			default: {
-			}
-		}
-		// Fade speed also aligned to BPM
-		fade_speed = 1.0 / (transition.fade_beats * beat_sec);
-	} else {
-		// Source has no BPM, so just simple transition.
-		if (transition.from_time == AudioStreamInteractive::TRANSITION_FROM_TIME_END && from_state.stream->get_length() > 0) {
-			float end = from_state.stream->get_length();
-			src_fade_wait = end - current_pos;
-			if (!from_state.stream->has_loop()) {
-				src_no_loop = true;
-			}
-		} else {
-			src_fade_wait = 0;
-		}
-		fade_speed = 1.0 / transition.fade_beats;
-	}
-
 	if (transition.to_time == AudioStreamInteractive::TRANSITION_TO_TIME_PREVIOUS_POSITION && to_state.stream->get_length() > 0.0) {
 		dst_seek_to = to_state.previous_position;
 	} else if (transition.to_time == AudioStreamInteractive::TRANSITION_TO_TIME_SAME_POSITION && transition.from_time != AudioStreamInteractive::TRANSITION_FROM_TIME_END && to_state.stream->get_length() > 0.0) {
 		// Seeking to basically same position as when we start fading.
-		dst_seek_to = current_pos + src_fade_wait;
+		dst_seek_to = current_pos + mix.start_t;
 		float end;
 		if (to_state.stream->get_bpm() > 0 && to_state.stream->get_beat_count()) {
-			float beat_sec = 60 / float(to_state.stream->get_bpm());
-			end = to_state.stream->get_beat_count() * beat_sec;
+			end = to_state.stream->get_beat_count() * mix.to_beat_sec;
 		} else {
 			end = to_state.stream->get_length();
 		}
@@ -754,33 +1001,10 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 			// Seeking too far away.
 			dst_seek_to = 0; //past end, loop to beginning.
 		}
-
 	} else {
 		// Seek to Start
 		dst_seek_to = 0.0;
 	}
-
-	if (transition.fade_mode == AudioStreamInteractive::FADE_DISABLED || transition.fade_mode == AudioStreamInteractive::FADE_IN) {
-		if (src_no_loop) {
-			// If there is no fade in the source stream, then let it continue until it ends.
-			from_state.fade_wait = 0;
-			from_state.fade_speed = 0;
-		} else {
-			// Otherwise force a very quick fade to avoid clicks
-			from_state.fade_wait = src_fade_wait;
-			from_state.fade_speed = 1.0 / -0.001;
-		}
-	} else {
-		// Regular fade.
-		from_state.fade_wait = src_fade_wait;
-		from_state.fade_speed = -fade_speed;
-	}
-	// keep volume, since it may have been fading in from something else.
-
-	to_state.playback->start(dst_seek_to);
-	to_state.active = true;
-	to_state.fade_volume = 0.0;
-	to_state.first_mix = true;
 
 	int auto_advance_to = -1;
 
@@ -800,7 +1024,24 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 		return_memory = playback_current;
 	}
 
-	if (transition.use_filler_clip && transition.filler_clip >= 0 && transition.filler_clip < (int)stream->clip_count && states[transition.filler_clip].playback.is_valid() && playback_current != transition.filler_clip && p_to_clip_index != transition.filler_clip) {
+	from_state.fade_wait = mix.from_fade_start_t;
+	from_state.fade_speed = mix.from_fade_speed;
+	from_state.fade_ease_exp = mix.from_fade_ease_exp;
+	from_state.fade_ease_t = 1.0;
+	from_state.fade_ease_volume = from_state.fade_volume;
+
+	to_state.playback->start(dst_seek_to);
+	to_state.active = true;
+	to_state.first_mix = true;
+	to_state.fade_volume = mix.to_fade_speed != 0.0 ? 0.0 : 1.0;
+	to_state.fade_wait = mix.to_start_t;
+	to_state.fade_speed = mix.to_fade_speed;
+	to_state.fade_ease_exp = mix.to_fade_ease_exp;
+	to_state.fade_ease_t = 0.0;
+	to_state.fade_ease_volume = 1.0;
+	to_state.auto_advance = auto_advance_to;
+
+	if (has_filler_clip) {
 		State &filler_state = states[transition.filler_clip];
 
 		filler_state.playback->start(0);
@@ -810,45 +1051,8 @@ void AudioStreamPlaybackInteractive::_queue(int p_to_clip_index, bool p_is_auto_
 		filler_state.fade_volume = 1.0;
 		filler_state.fade_speed = 0.0;
 
-		filler_state.fade_wait = src_fade_wait;
+		filler_state.fade_wait = mix.filler_start_t;
 		filler_state.first_mix = true;
-
-		float filler_end;
-		if (filler_state.stream->get_bpm() > 0 && filler_state.stream->get_beat_count() > 0) {
-			float filler_beat_sec = 60 / float(filler_state.stream->get_bpm());
-			filler_end = filler_beat_sec * filler_state.stream->get_beat_count();
-		} else {
-			filler_end = filler_state.stream->get_length();
-		}
-
-		if (!filler_state.stream->has_loop()) {
-			src_no_loop = true;
-		}
-
-		if (transition.fade_mode == AudioStreamInteractive::FADE_DISABLED || transition.fade_mode == AudioStreamInteractive::FADE_OUT) {
-			// No fading, immediately start at full volume.
-			to_state.fade_volume = 1.0; //start at full volume, as filler is meant as a transition.
-			to_state.fade_speed = 0.0;
-		} else {
-			// Fade enable, prepare fade.
-			to_state.fade_volume = 0.0;
-			to_state.fade_speed = fade_speed;
-		}
-
-		to_state.fade_wait = src_fade_wait + filler_end;
-
-	} else {
-		to_state.fade_wait = src_fade_wait;
-
-		if (transition.fade_mode == AudioStreamInteractive::FADE_DISABLED || transition.fade_mode == AudioStreamInteractive::FADE_OUT) {
-			to_state.fade_volume = 1.0;
-			to_state.fade_speed = 0.0;
-		} else {
-			to_state.fade_volume = 0.0;
-			to_state.fade_speed = fade_speed;
-		}
-
-		to_state.auto_advance = auto_advance_to;
 	}
 }
 
@@ -881,6 +1085,8 @@ int AudioStreamPlaybackInteractive::mix(AudioFrame *p_buffer, float p_rate_scale
 		p_buffer += to_mix;
 		todo -= to_mix;
 	}
+
+	playback_time += double(p_frames) / double(AudioServer::get_singleton()->get_mix_rate());
 
 	return p_frames;
 }
@@ -945,7 +1151,12 @@ void AudioStreamPlaybackInteractive::_mix_internal_state(int p_state_idx, int p_
 				state.fade_wait = 0.0;
 			}
 		} else if (frame_fade_inc > 0) {
-			state.fade_volume += frame_fade_inc;
+			if (state.fade_ease_exp) {
+				state.fade_ease_t += frame_fade_inc;
+				state.fade_volume = state.fade_ease_volume * Math::ease(state.fade_ease_t, state.fade_ease_exp);
+			} else {
+				state.fade_volume += frame_fade_inc;
+			}
 			if (state.fade_volume >= 1.0) {
 				state.fade_speed = 0.0;
 				frame_fade_inc = 0.0;
@@ -953,7 +1164,12 @@ void AudioStreamPlaybackInteractive::_mix_internal_state(int p_state_idx, int p_
 				queue_next = state.auto_advance;
 			}
 		} else if (frame_fade_inc < 0.0) {
-			state.fade_volume += frame_fade_inc;
+			if (state.fade_ease_exp) {
+				state.fade_ease_t += frame_fade_inc;
+				state.fade_volume = state.fade_ease_volume * Math::ease(state.fade_ease_t, state.fade_ease_exp);
+			} else {
+				state.fade_volume += frame_fade_inc;
+			}
 			if (state.fade_volume <= 0.0) {
 				state.fade_speed = 0.0;
 				frame_fade_inc = 0.0;
@@ -1038,7 +1254,7 @@ int AudioStreamPlaybackInteractive::get_loop_count() const {
 }
 
 double AudioStreamPlaybackInteractive::get_playback_position() const {
-	return 0.0;
+	return playback_time;
 }
 
 bool AudioStreamPlaybackInteractive::is_playing() const {
